@@ -2,12 +2,12 @@
 import numpy as np
 import pytest
 from matchms import Spectrum
-from ms2query.spectral_processing.merging_utils import (
+from numpy.testing import assert_allclose
+from ms2query.data_processing.merging_utils import (
     _merge_cluster_to_consensus,
     get_merged_spectra,
     normalize_spectrum_sum,
 )
-from numpy.testing import assert_allclose
 
 
 # ---------- helpers ----------

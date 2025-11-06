@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from matchms import Spectrum
 from ms2deepscore.models import compute_embedding_array, load_model
-from ms2query.spectral_processing import normalize_spectrum_sum
+from ms2query.data_processing import normalize_spectrum_sum
 from .database_utils import blob_to_ndarray, ndarray_to_blob
 from .spectra_merging import ensure_merged_tables  # schema with precursor_mz + metadata fields
 
