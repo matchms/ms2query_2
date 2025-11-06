@@ -11,9 +11,9 @@ def ndarray_to_blob(arr: np.ndarray) -> bytes:
         return f.getvalue()
 
 
-def blob_to_ndarray(blob: bytes) -> np.ndarray:
-    """Deserialize a NumPy array (with dtype/shape) from SQLite BLOB."""
-    # SQLite may return memoryview; ensure bytes
-    b = bytes(blob)
-    with io.BytesIO(b) as f:
-        return np.load(f, allow_pickle=False)
+def blob_to_array(b: bytes, dtype, copy=True) -> np.ndarray:
+    if not b:
+        return np.zeros(0, dtype=dtype)
+    if copy:
+        return np.frombuffer(b, dtype=dtype).copy()
+    return np.frombuffer(b, dtype=dtype)
