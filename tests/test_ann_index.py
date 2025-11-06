@@ -2,13 +2,12 @@ import io
 import json
 import sqlite3
 from typing import List, Tuple
-
 import numpy as np
 import pytest
 from matchms import Spectrum
-
 from ms2query.database import ANNIndex
 from ms2query.database.spectra_merging import ensure_merged_tables
+
 
 # --- small helpers for array <-> BLOB used in tests (mirrors the production helpers) ---
 

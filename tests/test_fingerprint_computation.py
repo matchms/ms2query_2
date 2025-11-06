@@ -1,15 +1,15 @@
 import numpy as np
 import pytest
-
 from ms2query.fingerprint_computation import (
     FingerprintGenerator,
     SparseFingerprintGenerator,
+    compute_fingerprints_from_smiles,
+    compute_idf,
+    count_fingerprint_keys,
     get_mol_from_smiles,
     prepare_sparse_vector,
-    compute_fingerprints_from_smiles,
-    count_fingerprint_keys,
-    compute_idf,
 )
+
 
 # -----------------------
 # Test doubles / fakes

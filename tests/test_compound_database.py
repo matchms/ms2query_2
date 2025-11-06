@@ -4,16 +4,15 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
-
-# >>> adjust to your package/module path
 from ms2query.database.compound_database import (
     CompoundDatabase,
     SpecToCompoundMap,
-    map_from_spectraldb_metadata,
+    compute_fingerprints,  # returns List[Optional[(bits, counts)]]
     get_unique_compounds_from_spectraldb,
-    compute_fingerprints,              # returns List[Optional[(bits, counts)]]
     inchikey14_from_full,
+    map_from_spectraldb_metadata,
 )
+
 
 # -------------------------
 # Helpers
