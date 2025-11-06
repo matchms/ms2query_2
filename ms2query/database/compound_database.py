@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
-from ms2query.fingerprint_computation import compute_fingerprints_from_smiles
 from rdkit.Chem import rdFingerprintGenerator
+from ms2query.data_processing import compute_fingerprints_from_smiles
 
 
 # =========================

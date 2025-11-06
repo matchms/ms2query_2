@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from ms2query.fingerprint_computation import (
+from ms2query.data_processing.fingerprint_computation import (
     FingerprintGenerator,
     SparseFingerprintGenerator,
     compute_fingerprints_from_smiles,
