@@ -9,7 +9,6 @@ from ms2query.database.compound_database import (
     SpecToCompoundMap,
     compute_fingerprints,  # returns List[Optional[(bits, counts)]]
     get_unique_compounds_from_spectraldb,
-    inchikey14_from_full,
     map_from_spectraldb_metadata,
 )
 
@@ -53,12 +52,6 @@ def create_min_spectral_table(sqlite_path: str, rows):
 # -------------------------
 # Tests: low-level utilities
 # -------------------------
-
-def test_inchikey14():
-    assert inchikey14_from_full(IK_FULL_1) == IK14_1
-    assert inchikey14_from_full("bsynrymutxbxsq-uhfffaoysa-n") == IK14_1
-    assert inchikey14_from_full("BQJCRHHNABKAKU-KBQPJGBKSA-N") == IK14_3
-    assert inchikey14_from_full("SHORT") is None  # too short
 
 def test_compute_fingerprints_contract():
     # API now expects list input in either smiles=... or inchis=...

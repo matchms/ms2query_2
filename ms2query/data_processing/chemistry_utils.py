@@ -1,6 +1,8 @@
 from typing import Optional
+import numpy as np
 from rdkit import Chem
 from rdkit.Chem import rdFingerprintGenerator
+from ms2query.data_processing.fingerprint_computation import compute_fingerprints_from_smiles
 
 
 def inchikey14_from_full(inchikey: str) -> Optional[str]:
