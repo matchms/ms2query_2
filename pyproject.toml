@@ -1,0 +1,94 @@
+[tool.poetry]
+name = "ms2query"
+version = "2.0.0"
+description = "Library for fast and efficient search of unknown MS/MS spectra against large reference data"
+authors = ["Florian Huber <florian.huber@hs-duesseldorf.de>"]
+
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/matchms/ms2query_2"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13"
+]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.14"
+numpy = ">=2.0.0"
+pandas = ">=2.1.1"
+scipy= ">=1.14.0"
+matplotlib= ">=3.8.0"
+
+[tool.poetry.group.dev.dependencies]
+decorator = "^5.1.1"
+pytest = "^7.4.0"
+pytest-cov = "^4.1.0"
+yapf = "^0.40.1"
+testfixtures = "^7.1.0"
+twine = "^6.1.0"
+poetry-bumpversion = "^0.3.1"
+pre-commit = "^4.2.0"
+ruff = "^0.11.4"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 120
+output-format = "grouped"
+
+[tool.ruff.format]
+docstring-code-format = true
+line-ending = "lf"
+
+[tool.ruff.lint]
+# TODO: add some rules in future, eg. W291/292
+extend-select = ["D", "E", "I"]
+# TODO: some of these rules should be enforced in the future, eg. E713
+ignore = [
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
+    "D107",
+    "D200",
+    "D201",
+    "D202",
+    "D203",
+    "D204",
+    "D205",
+    "D209",
+    "D210",
+    "D212",
+    "D213",
+    "D4",
+    "E713"
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["graphconstructor"]
+lines-after-imports = 2
+no-lines-before = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+# disable pydoc for tests
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+    "integration-tests",
+]
