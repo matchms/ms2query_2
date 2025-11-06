@@ -4,22 +4,13 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
-from rdkit.Chem import rdFingerprintGenerator
-from ms2query.data_processing import compute_fingerprints_from_smiles
+from ms2query.data_processing import compute_fingerprints_from_smiles, inchikey14_from_full, compute_morgan_fingerprint
+
 
 
 # =========================
 # Utilities & placeholders
 # =========================
-
-def inchikey14_from_full(inchikey: str) -> Optional[str]:
-    """Return the first 14 characters (inchikey14). Robust to hyphens/malformed keys."""
-    if not inchikey:
-        return None
-    s = str(inchikey).strip().upper()
-    if "-" in s:
-        return s.split("-", 1)[0][:14]
-    return s[:14] if len(s) >= 14 else None
 
 def encode_sparse_fp(bits: Optional[np.ndarray], counts: Optional[np.ndarray]) -> tuple[bytes, bytes]:
     """Store bits as uint32 indices, counts as int32
@@ -67,56 +58,6 @@ def decode_fp_blob(blob: bytes) -> np.ndarray:
     if not blob:
         return np.zeros(0, dtype=np.uint8)
     return np.frombuffer(blob, dtype=np.uint8).copy()
-
-def compute_fingerprints(
-        smiles: Optional[str] = None,
-        inchis: Optional[str] = None,
-        sparse: bool = True,
-        count: bool = True,
-        radius: int = 9,
-        progress_bar: bool = True,
-        ) -> np.ndarray:
-    """
-    Compute a molecular fingerprint from SMILES or InChI.
-
-    Parameters
-    ----------
-    smiles : str or None
-        SMILES string to compute the fingerprint from.
-    inchis : str or None
-        InChI strings to compute the fingerprint from (used if smiles is None).
-    sparse : bool
-        If True, compute sparse fingerprint (indices/counts); else dense bit vector.
-    count : bool
-        If True, compute count-based fingerprint; else binary fingerprint.
-    radius : int
-        Radius for Morgan fingerprint. Default 9.
-    progress_bar : bool
-        Whether to show a progress bar during computation. Default True.
-    """
-    fpgen = rdFingerprintGenerator.GetMorganGenerator(radius=radius, fpSize=4096)
-
-    if inchis and not smiles:
-        # convert inchis to smiles
-        smiles = []
-        for inchi in inchis:
-            try:
-                from rdkit import Chem
-                mol = Chem.MolFromInchi(inchi)
-                smi = Chem.MolToSmiles(mol) if mol is not None else None
-                smiles.append(smi)
-            except Exception as e:
-                print(f"Error converting InChI to SMILES for {inchi}: {e}")
-                smiles.append(None)
-    elif not smiles and not inchis:
-        raise ValueError("Either smiles or inchis must be provided.")
-    return compute_fingerprints_from_smiles(
-        smiles, 
-        fpgen,
-        count=count,
-        sparse=sparse,
-        progress_bar=progress_bar,
-    )
 
 
 # ==================================================
@@ -396,7 +337,7 @@ class CompoundDatabase:
         """
         Compute fingerprints for all compounds that have SMILES (pass A) or, if no SMILES,
         have InChI (pass B), and where fingerprints are missing.
-        Uses the project-level `compute_fingerprints` function that returns a
+        Uses the project-level `compute_morgan_fingerprint` function that returns a
         List[Optional[Tuple[np.ndarray,np.ndarray]]].
 
         Returns stats: {"updated": int, "attempted": int, "skipped": int}
@@ -468,8 +409,8 @@ class CompoundDatabase:
                 comp_ids = [r[0] for r in rows]
                 reps = [r[1] for r in rows]  # list[str] of smiles or inchi
 
-                # call compute_fingerprints ONCE for the whole batch
-                results = compute_fingerprints(
+                # call compute_morgan_fingerprint ONCE for the whole batch
+                results = compute_morgan_fingerprint(
                     smiles=reps if which == "smiles" else None,
                     inchis=reps if which == "inchi" else None,
                     sparse=sparse,
@@ -492,7 +433,6 @@ class CompoundDatabase:
         """)["n"].iloc[0]
 
         return stats
-
 
 
 # ==================================================
