@@ -1,14 +1,13 @@
-from typing import List, Dict, Tuple, Optional
-import sqlite3
 import json
+import sqlite3
 from collections import Counter
+from typing import Dict, List, Optional, Tuple
 import numpy as np
 from matchms import Spectrum
 from matchms.similarity import CosineGreedy
-from tqdm import tqdm
-
 from ms2query.spectral_processing import cluster_block, get_merged_spectra
 from ms2query.spectral_processing.merging_utils import METADATA_FIELDS_FROM_FIRST, METADATA_FIELDS_SUM
+from tqdm import tqdm
 from .database_utils import ndarray_to_blob
 
 

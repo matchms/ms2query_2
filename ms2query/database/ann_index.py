@@ -1,17 +1,15 @@
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Tuple, Union
-import sqlite3
 import json
+import sqlite3
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple, Union
+import faiss
 import numpy as np
 import pandas as pd
 from matchms import Spectrum
 from ms2deepscore.models import compute_embedding_array, load_model
-import faiss
-
-from .spectra_merging import ensure_merged_tables  # schema with precursor_mz + metadata fields
+from ms2query.spectral_processing import normalize_spectrum_sum
 from .database_utils import blob_to_ndarray, ndarray_to_blob
-from ms2query.spectral_processing import normalize_spectrum_sum
-from ms2query.spectral_processing import normalize_spectrum_sum
+from .spectra_merging import ensure_merged_tables  # schema with precursor_mz + metadata fields
 
 
 @dataclass

@@ -1,12 +1,12 @@
-from dataclasses import dataclass, field
-from typing import Iterable, Optional, Dict, Any, List, Tuple
-from pathlib import Path
 import sqlite3
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
+from ms2query.fingerprint_computation import compute_fingerprints_from_smiles
 from rdkit.Chem import rdFingerprintGenerator
 
-from ms2query.fingerprint_computation import compute_fingerprints_from_smiles
 
 # =========================
 # Utilities & placeholders

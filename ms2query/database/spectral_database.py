@@ -1,10 +1,11 @@
-from dataclasses import dataclass, field
-from typing import List, Tuple, Iterable, Optional, Dict, Any
 import sqlite3
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from matchms import Spectrum
-from pathlib import Path
+
 
 # ------------ helpers ------------
 
