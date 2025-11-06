@@ -174,7 +174,7 @@ class ANNIndex:
         if not first:
             raise ValueError("No embeddings present in 'merged_embeddings'.")
         first_id, first_blob = first
-        first_vec = blob_to_ndarray(first_blob).astype(np.float32, copy=False)
+        first_vec = blob_to_array(first_blob, np.float32, copy=False)
         d = int(first_vec.shape[-1])
 
         metric = faiss.METRIC_INNER_PRODUCT if self.faiss_metric.lower() == "ip" else faiss.METRIC_L2
@@ -198,7 +198,7 @@ class ANNIndex:
                 break
             for mid, blob in rows:
                 ids_buf.append(mid)
-                vec_buf.append(blob_to_ndarray(blob))
+                vec_buf.append(blob_to_array(blob, np.float32, copy=False))
             if ids_buf:
                 Xb = np.vstack(vec_buf).astype(np.float32, copy=False)
                 if self.faiss_metric.lower() == "ip" and self.normalize_embeddings:
@@ -258,8 +258,8 @@ class ANNIndex:
                     "source_spec_ids": json.loads(source_spec_ids) if source_spec_ids else [],
                 }
                 if include_peaks:
-                    row["mz"] = blob_to_ndarray(mz_blob).astype(np.float32, copy=False)
-                    row["intensities"] = blob_to_ndarray(intens_blob).astype(np.float32, copy=False)
+                    row["mz"] = blob_to_array(mz_blob, np.float32, copy=False)
+                    row["intensities"] = blob_to_array(intens_blob, np.float32, copy=False)
                 out[mid] = row
         return out
 
@@ -392,7 +392,7 @@ class ANNIndex:
         vecs = []
         for mid, blob in cur:
             mids.append(int(mid))
-            vecs.append(blob_to_ndarray(blob).astype(np.float32, copy=False))
+            vecs.append(blob_to_array(blob, np.float32, copy=False))
         if not vecs:
             return np.empty((0,), dtype=np.int64), np.empty((0, 0), dtype=np.float32)
 
