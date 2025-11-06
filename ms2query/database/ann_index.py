@@ -8,7 +8,7 @@ import pandas as pd
 from matchms import Spectrum
 from ms2deepscore.models import compute_embedding_array, load_model
 from ms2query.data_processing import normalize_spectrum_sum
-from .database_utils import blob_to_ndarray, ndarray_to_blob
+from .database_utils import blob_to_array, ndarray_to_blob
 from .spectra_merging import ensure_merged_tables  # schema with precursor_mz + metadata fields
 
 
@@ -124,8 +124,8 @@ class ANNIndex:
             specs: List[Spectrum] = []
             mids: List[int] = []
             for mid, mz_blob, it_blob, prec_mz, ionmode, charge in batch:
-                mz = blob_to_ndarray(mz_blob).astype(np.float32, copy=False)
-                it = blob_to_ndarray(it_blob).astype(np.float32, copy=False)
+                mz = blob_to_array(mz_blob, np.float32, copy=False)
+                it = blob_to_array(it_blob, np.float32, copy=False)
                 specs.append(Spectrum(mz=mz, intensities=it, metadata={
                     "precursor_mz": float(prec_mz),
                     "ionmode": ionmode,

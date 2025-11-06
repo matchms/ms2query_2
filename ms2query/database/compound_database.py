@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
-from ms2query.data_processing import compute_fingerprints_from_smiles, inchikey14_from_full, compute_morgan_fingerprint
+from ms2query.data_processing import compute_fingerprints_from_smiles, inchikey14_from_full, compute_morgan_fingerprints
 
 
 
@@ -337,7 +337,7 @@ class CompoundDatabase:
         """
         Compute fingerprints for all compounds that have SMILES (pass A) or, if no SMILES,
         have InChI (pass B), and where fingerprints are missing.
-        Uses the project-level `compute_morgan_fingerprint` function that returns a
+        Uses the project-level `compute_morgan_fingerprints` function that returns a
         List[Optional[Tuple[np.ndarray,np.ndarray]]].
 
         Returns stats: {"updated": int, "attempted": int, "skipped": int}
@@ -409,8 +409,8 @@ class CompoundDatabase:
                 comp_ids = [r[0] for r in rows]
                 reps = [r[1] for r in rows]  # list[str] of smiles or inchi
 
-                # call compute_morgan_fingerprint ONCE for the whole batch
-                results = compute_morgan_fingerprint(
+                # call compute_morgan_fingerprints ONCE for the whole batch
+                results = compute_morgan_fingerprints(
                     smiles=reps if which == "smiles" else None,
                     inchis=reps if which == "inchi" else None,
                     sparse=sparse,

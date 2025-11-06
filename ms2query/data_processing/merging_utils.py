@@ -1,9 +1,8 @@
 import numpy as np
+from matchms import Spectrum
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
-from matchms import Spectrum
-
-from ms2query.metrics.metrics import compute_cosine_greedy
+from ms2query.metrics import compute_cosine_greedy
 
 
 METADATA_FIELDS_FROM_FIRST = [
