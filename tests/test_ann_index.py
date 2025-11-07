@@ -7,14 +7,7 @@ import pytest
 from matchms import Spectrum
 from ms2query.database import ANNIndex
 from ms2query.database.spectra_merging import ensure_merged_tables
-
-
-# --- small helpers for array <-> BLOB used in tests (mirrors the production helpers) ---
-
-def _ndarray_to_blob(arr: np.ndarray) -> bytes:
-    with io.BytesIO() as f:
-        np.save(f, arr, allow_pickle=False)
-        return f.getvalue()
+from ms2query.database.database_utils import ndarray_to_blob
 
 
 @pytest.fixture()
@@ -78,7 +71,7 @@ def _insert_synthetic_merged_rows(conn: sqlite3.Connection) -> Tuple[int, int]:
         (
             "C1", "positive", 1, 300.123, "C(CO)O", "AAAA-BBBB-CCCC", "InChI=1S/...", "Compound A",
             "QTOF", "[M+H]+", "NCE 20", 3, json.dumps([11, 12, 13]),
-            sqlite3.Binary(_ndarray_to_blob(mz1)), sqlite3.Binary(_ndarray_to_blob(it1))
+            sqlite3.Binary(ndarray_to_blob(mz1)), sqlite3.Binary(ndarray_to_blob(it1))
         ),
     )
     id1 = cur.lastrowid
@@ -88,7 +81,7 @@ def _insert_synthetic_merged_rows(conn: sqlite3.Connection) -> Tuple[int, int]:
         (
             "C2", "positive", 1, 450.5, "CCN(CC)CC", "XXXX-YYYY-ZZZZ", "InChI=1S/...", "Compound B",
             "Orbitrap", "[M+H]+", "NCE 25", 2, json.dumps([21, 22]),
-            sqlite3.Binary(_ndarray_to_blob(mz2)), sqlite3.Binary(_ndarray_to_blob(it2))
+            sqlite3.Binary(ndarray_to_blob(mz2)), sqlite3.Binary(ndarray_to_blob(it2))
         ),
     )
     id2 = cur.lastrowid

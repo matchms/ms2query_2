@@ -7,10 +7,10 @@ import pytest
 from ms2query.database.compound_database import (
     CompoundDatabase,
     SpecToCompoundMap,
-    compute_fingerprints,  # returns List[Optional[(bits, counts)]]
     get_unique_compounds_from_spectraldb,
     map_from_spectraldb_metadata,
 )
+from ms2query.data_processing import compute_morgan_fingerprints
 
 
 # -------------------------
@@ -57,8 +57,9 @@ def test_compute_fingerprints_contract():
     # API now expects list input in either smiles=... or inchis=...
     smiles = ["CCO", "C1=CC=CC=C1", None]  # last one will be ignored by our call below
     # Call only with valid smiles strings
-    fps = compute_fingerprints(smiles=[s for s in smiles if s is not None],
-                               inchis=None, sparse=True, count=True, radius=9, progress_bar=False)
+    fps = compute_morgan_fingerprints(
+        smiles=[s for s in smiles if s is not None],
+        inchis=None, sparse=True, count=True, radius=9, progress_bar=False)
     assert isinstance(fps, list)
     assert len(fps) == 2
     for fp in fps:
