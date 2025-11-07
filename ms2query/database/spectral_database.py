@@ -9,10 +9,10 @@ from matchms import Spectrum
 
 # ------------ helpers ------------
 
-_NUMERIC_FIELDS = {"precursor_mz", "collision_energy"}  # stored as REAL
+_NUMERIC_FIELDS = {"precursor_mz"}  # stored as REAL
 _TEXT_FIELDS = {
     "ionmode", "smiles", "inchikey", "inchi", "name",
-    "instrument_type", "adduct"
+    "instrument_type", "adduct", "collision_energy",
 }
 
 def _as_float32_bytes(a: np.ndarray) -> bytes:

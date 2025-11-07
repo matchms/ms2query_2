@@ -36,6 +36,7 @@ def spectra_small():
         precursor_mz=123.4,
         name="test-2",
         instrument_type="Orbitrap",
+        collision_energy="[20.0, 30.0, 60.0]"
     )
     s3 = make_spectrum(
         [101, 202, 303, 404],
@@ -108,20 +109,21 @@ def test_get_fragments_by_ids(tmp_db, spectra_small):
 
 def test_get_metadata_by_ids_df(tmp_db, spectra_small):
     ids = tmp_db.add_spectra(spectra_small)
-    df = tmp_db.get_metadata_by_ids([ids[2], ids[0]])
+    df = tmp_db.get_metadata_by_ids([ids[2], ids[0], ids[1]])
 
     # Expected columns: spec_id + configured metadata fields
     expected_cols = ["spec_id"] + tmp_db.metadata_fields
     assert list(df.columns) == expected_cols
 
-    # Two rows, in the requested order
-    assert df.shape[0] == 2
+    # Three rows, in the requested order
+    assert df.shape[0] == 3
     assert df.loc[0, "spec_id"] == ids[2]
     assert df.loc[1, "spec_id"] == ids[0]
 
     # Stored values present / normalized
     assert df.loc[0, "inchikey"] == "ABCD-IK"  # came from spectrum_3
     assert df.loc[1, "precursor_mz"] == pytest.approx(240.0)  # came from spectrum_1
+    assert df.loc[2, "collision_energy"] == "[20.0, 30.0, 60.0]"
 
     # Missing fields become None
     assert pd.isna(df.loc[1, "inchikey"]) or df.loc[1, "inchikey"] is None
