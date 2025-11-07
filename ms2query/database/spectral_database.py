@@ -50,6 +50,7 @@ def _normalize_metadata(md: Dict[str, Any], fields: Iterable[str]) -> Dict[str, 
 @dataclass
 class SpectralDatabase:
     sqlite_path: str
+    table: str = "spectra"
     metadata_fields: List[str] = field(default_factory=lambda: [
         "precursor_mz", "ionmode", "smiles", "inchikey", "inchi", "name",
         "instrument_type", "adduct", "collision_energy"
@@ -65,7 +66,7 @@ class SpectralDatabase:
     # ---------- public API ----------
 
     def add_spectra(self, spectra: List[Spectrum]) -> List[int]:
-        """Add spectra to the database. Returns assigned spec_ids."""
+        f"""Add {self.table} to the database. Returns assigned spec_ids."""
         if not spectra:
             return []
 
@@ -83,7 +84,7 @@ class SpectralDatabase:
         supports_returning = self._supports_returning()
 
         sql = (
-            "INSERT INTO spectra (mz_blob, intensity_blob, n_peaks, "
+            f"INSERT INTO {self.table} (mz_blob, intensity_blob, n_peaks, "
             + ", ".join(self.metadata_fields)
             + ") VALUES (?,?,?,?,"
             + ",".join("?" for _ in self.metadata_fields[1:])  # first ? after n_peaks already placed
@@ -92,7 +93,7 @@ class SpectralDatabase:
         # Adjust because above mistakenly adds one extra '?'; correct it:
         # Let's build positions precisely:
         placeholders = ",".join("?" for _ in range(3 + len(self.metadata_fields)))
-        sql = f"INSERT INTO spectra (mz_blob, intensity_blob, n_peaks, {', '.join(self.metadata_fields)}) VALUES ({placeholders})"
+        sql = f"INSERT INTO {self.table} (mz_blob, intensity_blob, n_peaks, {', '.join(self.metadata_fields)}) VALUES ({placeholders})"
         if supports_returning:
             sql_ret = sql + " RETURNING spec_id"
 
@@ -143,7 +144,7 @@ class SpectralDatabase:
     def ids(self) -> List[int]:
         """Return all spec_ids in the database."""
         cur = self._conn.cursor()
-        rows = cur.execute("SELECT spec_id FROM spectra").fetchall()
+        rows = cur.execute(f"SELECT spec_id FROM {self.table}").fetchall()
         return [int(row["spec_id"]) for row in rows]
 
     def get_spectra_by_ids(self, specIDs: List[int]) -> List[Spectrum]:
@@ -210,7 +211,7 @@ class SpectralDatabase:
         if not specIDs:
             return []
         placeholders = ",".join("?" for _ in specIDs)
-        sql = f"SELECT {cols} FROM spectra WHERE spec_id IN ({placeholders})"
+        sql = f"SELECT {cols} FROM {self.table} WHERE spec_id IN ({placeholders})"
         cur = self._conn.cursor()
         return cur.execute(sql, specIDs).fetchall()
 
@@ -226,7 +227,7 @@ class SpectralDatabase:
         md_cols_clause = ", ".join(md_cols_sql)
 
         cur.executescript(f"""
-            CREATE TABLE IF NOT EXISTS spectra(
+            CREATE TABLE IF NOT EXISTS {self.table}(
                 spec_id       INTEGER PRIMARY KEY AUTOINCREMENT,
                 mz_blob       BLOB NOT NULL,
                 intensity_blob BLOB NOT NULL,

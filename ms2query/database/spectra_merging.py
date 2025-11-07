@@ -140,10 +140,10 @@ def _split_by_mode_charge(spectra: List[Spectrum]) -> Dict[Tuple[str, Optional[i
 # --------------------------- cluster & merge ---------------------------
 
 def cluster_and_merge_to_sqlite(
-    mapper,
-    sdb,
+    db,
     conn: sqlite3.Connection,
     *,
+    spectra_table: str = "spectra",
     cosine_thr: float = 0.95,
     intensity_power: float = 0.5,
     mz_tol: float = 0.01,
@@ -156,10 +156,8 @@ def cluster_and_merge_to_sqlite(
 
     Parameters
     ----------
-    mapper : Any
-        Has `get_all_mappings()` -> DataFrame with columns ['comp_id', 'spec_id'].
-    sdb : Any
-        Has `get_spectra_by_ids(List[int]) -> List[matchms.Spectrum]`.
+    Db: MS2QueryDatabase
+
     conn : sqlite3.Connection
         Connection to the *same* SQLite DB as `sdb` (so tables live together).
     cosine_thr : float
@@ -187,7 +185,7 @@ def cluster_and_merge_to_sqlite(
     cur.execute("PRAGMA journal_mode = WAL;")
     cur.execute("PRAGMA synchronous = NORMAL;")
 
-    mappings = mapper.get_all_mappings()
+    mappings = db.mapper.get_all_mappings()
     comp_ids = list(mappings.comp_id.unique())
 
     inserted = 0
@@ -203,7 +201,7 @@ def cluster_and_merge_to_sqlite(
                 continue
 
         spec_ids = mappings.loc[mappings.comp_id == comp_id, "spec_id"].astype(int).tolist()
-        spectra = sdb.get_spectra_by_ids(spec_ids)
+        spectra = db.ref_sdb.get_spectra_by_ids(spec_ids)
 
         if not spectra:
             processed += 1
