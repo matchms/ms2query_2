@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
-from ms2query.data_processing import compute_fingerprints_from_smiles, inchikey14_from_full, compute_morgan_fingerprints
+from ms2query.data_processing import inchikey14_from_full, compute_morgan_fingerprints
 
 
 
@@ -73,6 +73,8 @@ class CompoundDatabase:
     ----------
     sqlite_path : str
         Path to the SQLite database file.
+    table : str
+        Datbase table name (e.g., "compounds", "reference_compounds")
     compound_fields : List[str]
         List of metadata fields to store for each compound.
     fingerprint_radius : int
@@ -83,6 +85,7 @@ class CompoundDatabase:
         Whether to store count-based (True) or binary (False) fingerprints (used in backfill).
     """
     sqlite_path: str
+    table: str = "compounds"
     compound_fields: List[str] = field(default_factory=lambda: [
         "smiles", "inchi", "inchikey", "classyfire_class", "classyfire_superclass"
     ])
@@ -104,9 +107,9 @@ class CompoundDatabase:
 
     def _ensure_schema(self):
         cur = self._conn.cursor()
-        cur.executescript("""
+        cur.executescript(f"""
             PRAGMA journal_mode=WAL;
-            CREATE TABLE IF NOT EXISTS compounds(
+            CREATE TABLE IF NOT EXISTS {self.table}(
                 comp_id               TEXT PRIMARY KEY,          -- inchikey14
                 smiles                TEXT,
                 inchi                 TEXT,
@@ -116,14 +119,14 @@ class CompoundDatabase:
                 classyfire_class      TEXT,
                 classyfire_superclass TEXT
             );
-            CREATE INDEX IF NOT EXISTS idx_compounds_smiles ON compounds(smiles);
-            CREATE INDEX IF NOT EXISTS idx_compounds_inchi  ON compounds(inchi);
+            CREATE INDEX IF NOT EXISTS idx_compounds_smiles ON {self.table}(smiles);
+            CREATE INDEX IF NOT EXISTS idx_compounds_inchi  ON {self.table}(inchi);
         """)
         # add missing columns for sparse pair
-        cols = {r[1] for r in cur.execute("PRAGMA table_info(compounds)").fetchall()}
+        cols = {r[1] for r in cur.execute(f"PRAGMA table_info({self.table})").fetchall()}
         for name, typ in (("fingerprint_bits", "BLOB"), ("fingerprint_counts", "BLOB")):
             if name not in cols:
-                cur.execute(f"ALTER TABLE compounds ADD COLUMN {name} {typ}")
+                cur.execute(f"ALTER TABLE {self.table} ADD COLUMN {name} {typ}")
         self._conn.commit()
 
     # ---------- UPSERTS ----------
@@ -150,24 +153,24 @@ class CompoundDatabase:
             bits_blob, counts_blob = b"", b""
 
         cur = self._conn.cursor()
-        cur.execute("""
-            INSERT INTO compounds (
+        cur.execute(f"""
+            INSERT INTO {self.table} (
                 comp_id, smiles, inchi, inchikey,
                 fingerprint_bits, fingerprint_counts,
                 classyfire_class, classyfire_superclass
             ) VALUES (?,?,?,?,?,?,?,?)
             ON CONFLICT(comp_id) DO UPDATE SET
-                smiles=COALESCE(excluded.smiles, compounds.smiles),
-                inchi=COALESCE(excluded.inchi, compounds.inchi),
-                inchikey=COALESCE(excluded.inchikey, compounds.inchikey),
+                smiles=COALESCE(excluded.smiles, {self.table}.smiles),
+                inchi=COALESCE(excluded.inchi, {self.table}.inchi),
+                inchikey=COALESCE(excluded.inchikey, {self.table}.inchikey),
                 fingerprint_bits=CASE
                     WHEN COALESCE(LENGTH(excluded.fingerprint_bits),0) > 0
-                    THEN excluded.fingerprint_bits ELSE compounds.fingerprint_bits END,
+                    THEN excluded.fingerprint_bits ELSE {self.table}.fingerprint_bits END,
                 fingerprint_counts=CASE
                     WHEN COALESCE(LENGTH(excluded.fingerprint_counts),0) > 0
-                    THEN excluded.fingerprint_counts ELSE compounds.fingerprint_counts END,
-                classyfire_class=COALESCE(excluded.classyfire_class, compounds.classyfire_class),
-                classyfire_superclass=COALESCE(excluded.classyfire_superclass, compounds.classyfire_superclass)
+                    THEN excluded.fingerprint_counts ELSE {self.table}.fingerprint_counts END,
+                classyfire_class=COALESCE(excluded.classyfire_class, {self.table}.classyfire_class),
+                classyfire_superclass=COALESCE(excluded.classyfire_superclass, {self.table}.classyfire_superclass)
         """, (
             comp_id, smiles, inchi, inchikey,
             bits_blob, counts_blob,
@@ -196,24 +199,24 @@ class CompoundDatabase:
                 else:
                     bits_blob, counts_blob = b"", b""
 
-                cur.execute("""
-                    INSERT INTO compounds (
+                cur.execute(f"""
+                    INSERT INTO {self.table} (
                         comp_id, smiles, inchi, inchikey,
                         fingerprint_bits, fingerprint_counts,
                         classyfire_class, classyfire_superclass
                     ) VALUES (?,?,?,?,?,?,?,?)
                     ON CONFLICT(comp_id) DO UPDATE SET
-                        smiles=COALESCE(excluded.smiles, compounds.smiles),
-                        inchi=COALESCE(excluded.inchi, compounds.inchi),
-                        inchikey=COALESCE(excluded.inchikey, compounds.inchikey),
+                        smiles=COALESCE(excluded.smiles, {self.table}.smiles),
+                        inchi=COALESCE(excluded.inchi, {self.table}.inchi),
+                        inchikey=COALESCE(excluded.inchikey, {self.table}.inchikey),
                         fingerprint_bits=CASE
                             WHEN COALESCE(LENGTH(excluded.fingerprint_bits),0) > 0
-                            THEN excluded.fingerprint_bits ELSE compounds.fingerprint_bits END,
+                            THEN excluded.fingerprint_bits ELSE {self.table}.fingerprint_bits END,
                         fingerprint_counts=CASE
                             WHEN COALESCE(LENGTH(excluded.fingerprint_counts),0) > 0
-                            THEN excluded.fingerprint_counts ELSE compounds.fingerprint_counts END,
-                        classyfire_class=COALESCE(excluded.classyfire_class, compounds.classyfire_class),
-                        classyfire_superclass=COALESCE(excluded.classyfire_superclass, compounds.classyfire_superclass)
+                            THEN excluded.fingerprint_counts ELSE {self.table}.fingerprint_counts END,
+                        classyfire_class=COALESCE(excluded.classyfire_class, {self.table}.classyfire_class),
+                        classyfire_superclass=COALESCE(excluded.classyfire_superclass, {self.table}.classyfire_superclass)
                 """, (
                     comp_id,
                     r.get("smiles"),
@@ -238,9 +241,9 @@ class CompoundDatabase:
         Return metadata for one compound (no fingerprint blobs).
         Keys: comp_id, smiles, inchi, inchikey, classyfire_class, classyfire_superclass
         """
-        row = self._conn.execute("""
+        row = self._conn.execute(f"""
             SELECT comp_id, smiles, inchi, inchikey, classyfire_class, classyfire_superclass
-            FROM compounds
+            FROM {self.table}
             WHERE comp_id = ?
         """, (comp_id,)).fetchone()
         return dict(row) if row else None
@@ -249,9 +252,9 @@ class CompoundDatabase:
         """
         Return (bits, counts) tuple for one compound; None if absent or empty.
         """
-        row = self._conn.execute("""
+        row = self._conn.execute(f"""
             SELECT fingerprint_bits, fingerprint_counts
-            FROM compounds
+            FROM {self.table}
             WHERE comp_id = ?
         """, (comp_id,)).fetchone()
         if not row:
@@ -277,7 +280,7 @@ class CompoundDatabase:
         placeholders = ",".join("?" for _ in comp_ids)
         df = pd.read_sql_query(f"""
             SELECT comp_id, smiles, inchi, inchikey, classyfire_class, classyfire_superclass
-            FROM compounds
+            FROM {self.table}
             WHERE comp_id IN ({placeholders})
         """, self._conn, params=comp_ids)
 
@@ -305,7 +308,7 @@ class CompoundDatabase:
         placeholders = ",".join("?" for _ in comp_ids)
         rows = self._conn.execute(f"""
             SELECT comp_id, fingerprint_bits, fingerprint_counts
-            FROM compounds
+            FROM {self.table}
             WHERE comp_id IN ({placeholders})
         """, comp_ids).fetchall()
 
@@ -364,7 +367,7 @@ class CompoundDatabase:
                         bits_blob, counts_blob = encode_sparse_fp(*res)
                         updated += 1
                     cur.execute(
-                        "UPDATE compounds SET fingerprint_bits=?, fingerprint_counts=? WHERE comp_id=?",
+                        f"UPDATE {self.table} SET fingerprint_bits=?, fingerprint_counts=? WHERE comp_id=?",
                         (bits_blob, counts_blob, cid),
                     )
                 cur.execute("COMMIT")
@@ -376,9 +379,9 @@ class CompoundDatabase:
         stats = {"updated": 0, "attempted": 0, "skipped": 0}
 
         # PASS A: SMILES-present & fingerprints missing
-        sql_smiles = """
+        sql_smiles = f"""
             SELECT comp_id, smiles
-            FROM compounds
+            FROM {self.table}
             WHERE smiles IS NOT NULL
               AND TRIM(smiles) <> ''
               AND COALESCE(LENGTH(fingerprint_bits),0)=0
@@ -388,9 +391,9 @@ class CompoundDatabase:
         """
 
         # PASS B: no SMILES, but InChI-present & fingerprints missing
-        sql_inchi = """
+        sql_inchi = f"""
             SELECT comp_id, inchi
-            FROM compounds
+            FROM {self.table}
             WHERE (smiles IS NULL OR TRIM(smiles) = '')
               AND inchi IS NOT NULL
               AND TRIM(inchi) <> ''
@@ -425,9 +428,9 @@ class CompoundDatabase:
                 offset += batch_size
 
         # rows without SMILES & without InChI are skipped
-        stats["skipped"] = self.sql_query("""
+        stats["skipped"] = self.sql_query(f"""
             SELECT COUNT(*) AS n
-            FROM compounds
+            FROM {self.table}
             WHERE (smiles IS NULL OR TRIM(smiles)='')
               AND (inchi  IS NULL OR TRIM(inchi) ='')
         """)["n"].iloc[0]
@@ -443,6 +446,8 @@ class CompoundDatabase:
 class SpecToCompoundMap:
     """Stores (spec_id -> comp_id) mappings in SQLite. Use the SAME DB file as SpectralDatabase for simplicity."""
     sqlite_path: str
+    table: str = "spec_to_comp"
+    compound_table: str = "compounds"
     _conn: sqlite3.Connection = field(init=False, repr=False)
 
     def __post_init__(self):
@@ -461,17 +466,17 @@ class SpecToCompoundMap:
         cur = self._conn.cursor()
         # No strict FK enforcement (SpectralDatabase may have been created without FK pragma),
         # here: index both sides for fast lookup.
-        cur.executescript("""
-            CREATE TABLE IF NOT EXISTS spec_to_comp(
+        cur.executescript(f"""
+            CREATE TABLE IF NOT EXISTS {self.table}(
                 spec_id INTEGER NOT NULL,
                 comp_id TEXT    NOT NULL,
                 PRIMARY KEY (spec_id),
-                -- implicit: comp_id should exist in compounds.comp_id (not enforced here)
-                -- to enforce FK, you can enable PRAGMA foreign_keys=ON and create a FK to compounds(comp_id)
+                -- implicit: comp_id should exist in {self.compound_table}.comp_id (not enforced here)
+                -- to enforce FK, you can enable PRAGMA foreign_keys=ON and create a FK to {self.compound_table}(comp_id)
                 -- if both tables are in the same SQLite file.
                 CHECK (length(comp_id) = 14)
             );
-            CREATE INDEX IF NOT EXISTS idx_spec_to_comp_comp ON spec_to_comp(comp_id);
+            CREATE INDEX IF NOT EXISTS idx_spec_to_comp_comp ON {self.table}(comp_id);
         """)
         self._conn.commit()
 
@@ -481,8 +486,8 @@ class SpecToCompoundMap:
         """Insert or replace a single mapping."""
         if not comp_id or len(comp_id) != 14:
             raise ValueError("comp_id must be inchikey14 (14 characters).")
-        self._conn.execute("""
-            INSERT INTO spec_to_comp (spec_id, comp_id)
+        self._conn.execute(f"""
+            INSERT INTO {self.table} (spec_id, comp_id)
             VALUES (?, ?)
             ON CONFLICT(spec_id) DO UPDATE SET comp_id=excluded.comp_id
         """, (spec_id, comp_id))
@@ -493,8 +498,8 @@ class SpecToCompoundMap:
         cur = self._conn.cursor()
         cur.execute("BEGIN")
         try:
-            cur.executemany("""
-                INSERT INTO spec_to_comp (spec_id, comp_id)
+            cur.executemany(f"""
+                INSERT INTO {self.table} (spec_id, comp_id)
                 VALUES (?, ?)
                 ON CONFLICT(spec_id) DO UPDATE SET comp_id=excluded.comp_id
             """, list(pairs))
@@ -509,19 +514,19 @@ class SpecToCompoundMap:
             return pd.DataFrame(columns=["spec_id", "comp_id"])
         placeholders = ",".join("?" * len(spec_ids))
         rows = self._conn.execute(
-            f"SELECT spec_id, comp_id FROM spec_to_comp WHERE spec_id IN ({placeholders})",
+            f"SELECT spec_id, comp_id FROM {self.table} WHERE spec_id IN ({placeholders})",
             spec_ids
         ).fetchall()
         return pd.DataFrame(rows, columns=["spec_id", "comp_id"])
 
     def get_specs_for_comp(self, comp_id: str) -> List[int]:
         """Return list of spec_ids for a given comp_id."""
-        rows = self._conn.execute("SELECT spec_id FROM spec_to_comp WHERE comp_id = ?", (comp_id,)).fetchall()
+        rows = self._conn.execute(f"SELECT spec_id FROM {self.table} WHERE comp_id = ?", (comp_id,)).fetchall()
         return [r[0] for r in rows]
 
     def get_all_mappings(self) -> pd.DataFrame:
         """Return all spec_id <-> comp_id mappings as a DataFrame."""
-        rows = self._conn.execute("SELECT spec_id, comp_id FROM spec_to_comp").fetchall()
+        rows = self._conn.execute(f"SELECT spec_id, comp_id FROM {self.table}").fetchall()
         return pd.DataFrame(rows, columns=["spec_id", "comp_id"])
 
 
@@ -533,6 +538,9 @@ def map_from_spectraldb_metadata(
     spectral_db_sqlite_path: str,
     mapping_sqlite_path: Optional[str] = None,
     compounds_sqlite_path: Optional[str] = None,
+    spectra_table: str = "spectra",
+    compound_table: str = "compounds",
+    mapping_table: str = "spec_to_comp",
     *,
     create_missing_compounds: bool = True
 ) -> Tuple[int, int]:
@@ -547,18 +555,18 @@ def map_from_spectraldb_metadata(
     s_conn.row_factory = sqlite3.Row
 
     map_db_path = mapping_sqlite_path or spectral_db_sqlite_path
-    c_db_path   = compounds_sqlite_path or spectral_db_sqlite_path
+    c_db_path = compounds_sqlite_path or spectral_db_sqlite_path
 
-    mapper = SpecToCompoundMap(map_db_path)
-    compdb = CompoundDatabase(c_db_path)
+    mapper = SpecToCompoundMap(map_db_path, table=mapping_table)
+    compdb = CompoundDatabase(c_db_path, table=compound_table)
 
     # Discover which columns exist in the spectra table
-    cols = {r[1] for r in s_conn.execute("PRAGMA table_info(spectra)").fetchall()}
+    cols = {r[1] for r in s_conn.execute(f"PRAGMA table_info({spectra_table})").fetchall()}
     want = ["spec_id", "inchikey", "smiles", "inchi", "classyfire_class", "classyfire_superclass"]
     have = [c for c in want if c in cols]
     select_cols = ", ".join(have)
 
-    rows = s_conn.execute(f"SELECT {select_cols} FROM spectra").fetchall()
+    rows = s_conn.execute(f"SELECT {select_cols} FROM {spectra_table}").fetchall()
 
     to_link: List[Tuple[int, str]] = []
     new_comp_rows: List[Dict[str, Any]] = []
@@ -599,9 +607,9 @@ def map_from_spectraldb_metadata(
             if cid and cid not in seen:
                 seen.add(cid)
                 dedup_rows.append(r)
-        before = compdb.sql_query("SELECT COUNT(*) AS n FROM compounds")["n"].iloc[0]
+        before = compdb.sql_query(f"SELECT COUNT(*) AS n FROM {compound_table}")["n"].iloc[0]
         compdb.upsert_many(dedup_rows)
-        after  = compdb.sql_query("SELECT COUNT(*) AS n FROM compounds")["n"].iloc[0]
+        after  = compdb.sql_query(f"SELECT COUNT(*) AS n FROM {compound_table}")["n"].iloc[0]
         n_new_compounds = int(after - before)
 
     n_mapped = len(to_link)
@@ -616,6 +624,7 @@ def map_from_spectraldb_metadata(
 
 def get_unique_compounds_from_spectraldb(
     spectral_db_sqlite_path: str,
+    spectra_table: str = "spectra",
     external_meta: Optional[pd.DataFrame] = None,
     external_key_col: str = "inchikey14"
 ) -> pd.DataFrame:
@@ -628,7 +637,7 @@ def get_unique_compounds_from_spectraldb(
     conn.row_factory = sqlite3.Row
 
     # pull spec_id + inchikey from spectra
-    df = pd.read_sql_query("SELECT spec_id, inchikey FROM spectra", conn)
+    df = pd.read_sql_query(f"SELECT spec_id, inchikey FROM {spectra_table}", conn)
     conn.close()
 
     if df.empty:
