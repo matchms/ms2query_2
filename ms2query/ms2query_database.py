@@ -35,21 +35,27 @@ class MS2QueryDatabase:
     """
 
     sqlite_path: str
+    ref_spectra_table: str = "spectra"
+    ref_compound_table: str = "compounds"
+    non_annotated_compound_table: str = "compounds_all"
     metadata_fields: List[str] = field(default_factory=lambda: [
         "precursor_mz", "ionmode", "smiles", "inchikey", "inchi", "name",
         "instrument_type", "adduct", "collision_energy"
     ])
 
     # component singletons
-    sdb: SpectralDatabase = field(init=False)
-    cdb: CompoundDatabase = field(init=False)
+    ref_sdb: SpectralDatabase = field(init=False)
+    ref_cdb: CompoundDatabase = field(init=False)
+    all_cdb: CompoundDatabase = field(init=False)
     mapper: SpecToCompoundMap = field(init=False)
 
     def __post_init__(self):
         # Initialize components (each manages its own connection)
-        self.sdb = SpectralDatabase(self.sqlite_path, metadata_fields=self.metadata_fields)
-        self.cdb = CompoundDatabase(self.sqlite_path)
-        self.mapper = SpecToCompoundMap(self.sqlite_path)
+        self.ref_sdb = SpectralDatabase(self.sqlite_path, table=self.ref_spectra_table,
+                                    metadata_fields=self.metadata_fields)
+        self.ref_cdb = CompoundDatabase(self.sqlite_path, table=self.ref_compound_table)
+        self.all_cfb = CompoundDatabase(self.sqlite_path, table=self.non_annotated_compound_table)
+        self.mapper = SpecToCompoundMap(self.sqlite_path, compound_table=self.ref_compound_table)
         # Ensure merged tables exist on the *same* file
         with sqlite3.connect(self.sqlite_path) as conn:
             ensure_merged_tables(conn)
@@ -67,7 +73,7 @@ class MS2QueryDatabase:
 
         Returns counts: {"n_inserted_spectra": int, "n_mapped": int, "n_new_compounds": int}
         """
-        spec_ids = self.sdb.add_spectra(spectra)
+        spec_ids = self.ref_sdb.add_spectra(spectra)
         n_mapped = 0
         n_new = 0
         if map_compounds and spec_ids:
@@ -75,6 +81,19 @@ class MS2QueryDatabase:
                 spectral_db_sqlite_path=self.sqlite_path,
                 mapping_sqlite_path=self.sqlite_path,
                 compounds_sqlite_path=self.sqlite_path,
+                spectra_table=self.ref_spectra_table,
+                compound_table=self.ref_compound_table,
+                mapping_table="spec_to_comp",
+                create_missing_compounds=create_missing_compounds,
+            )
+            # ONLY PLACEHOLDER --> LATER: ADD COMPOUNDS FROM LIST/FILE
+            _, _ = map_from_spectraldb_metadata(
+                spectral_db_sqlite_path=self.sqlite_path,
+                mapping_sqlite_path=self.sqlite_path,
+                compounds_sqlite_path=self.sqlite_path,
+                spectra_table=self.ref_spectra_table,
+                compound_table=self.non_annotated_compound_table,
+                mapping_table="spec_to_comp_all",
                 create_missing_compounds=create_missing_compounds,
             )
         return {
@@ -87,13 +106,13 @@ class MS2QueryDatabase:
     # ---- by spec_id ----
 
     def spectra_by_spec_ids(self, spec_ids: List[int]):
-        return self.sdb.get_spectra_by_ids(spec_ids)
+        return self.ref_sdb.get_spectra_by_ids(spec_ids)
 
     def fragments_by_spec_ids(self, spec_ids: List[int]):
-        return self.sdb.get_fragments_by_ids(spec_ids)
+        return self.ref_sdb.get_fragments_by_ids(spec_ids)
 
     def metadata_by_spec_ids(self, spec_ids: List[int]) -> pd.DataFrame:
-        return self.sdb.get_metadata_by_ids(spec_ids)
+        return self.ref_sdb.get_metadata_by_ids(spec_ids)
 
     # ---- by comp_id (inchikey14) ----
 
@@ -101,14 +120,14 @@ class MS2QueryDatabase:
         return self.mapper.get_specs_for_comp(comp_id)
 
     def spectra_by_comp_id(self, comp_id: str):
-        return self.sdb.get_spectra_by_ids(self.spec_ids_by_comp_id(comp_id))
+        return self.ref_sdb.get_spectra_by_ids(self.spec_ids_by_comp_id(comp_id))
 
     def metadata_by_comp_id(self, comp_id: str) -> pd.DataFrame:
         spec_ids = self.spec_ids_by_comp_id(comp_id)
-        return self.sdb.get_metadata_by_ids(spec_ids)
+        return self.ref_sdb.get_metadata_by_ids(spec_ids)
 
     def compound(self, comp_id: str) -> Optional[Dict[str, Any]]:
-        return self.cdb.get_compound(comp_id)
+        return self.ref_cdb.get_compound(comp_id)
 
     # ---- merged spectra ----
 
@@ -151,11 +170,11 @@ class MS2QueryDatabase:
     def close(self):
         # Close component connections
         try:
-            self.sdb.close()
+            self.ref_sdb.close()
         except Exception:
             pass
         try:
-            self.cdb.close()
+            self.ref_cdb.close()
         except Exception:
             pass
         try:
