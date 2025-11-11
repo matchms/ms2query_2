@@ -121,7 +121,7 @@ def test_mapper_link_and_get(tmp_path):
     mapper.link_many([(124, IK14_1), (125, IK14_1)])
 
     ids = mapper.get_specs_for_comp(IK14_1)
-    assert set(ids) == {123, 124, 125}
+    assert set(ids) == {"123", "124", "125"}
 
     df = mapper.get_comp_id_for_specs([122, 123, 124, 125])
     assert set(df.columns) == {"spec_id", "comp_id"}
