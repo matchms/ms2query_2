@@ -54,7 +54,7 @@ class MS2QueryDatabase:
         self.ref_sdb = SpectralDatabase(self.sqlite_path, table=self.ref_spectra_table,
                                     metadata_fields=self.metadata_fields)
         self.ref_cdb = CompoundDatabase(self.sqlite_path, table=self.ref_compound_table)
-        self.all_cfb = CompoundDatabase(self.sqlite_path, table=self.non_annotated_compound_table)
+        self.all_cdb = CompoundDatabase(self.sqlite_path, table=self.non_annotated_compound_table)
         self.mapper = SpecToCompoundMap(self.sqlite_path, compound_table=self.ref_compound_table)
         # Ensure merged tables exist on the *same* file
         with sqlite3.connect(self.sqlite_path) as conn:
@@ -101,6 +101,17 @@ class MS2QueryDatabase:
             "n_mapped": int(n_mapped),
             "n_new_compounds": int(n_new),
         }
+    
+    def add_second_compound_database(self, df):
+        """Add an additional 'all compound' database without need for spectral data.
+
+        Parameters
+        ----------
+        df: pd.DataFrame
+            DataFrame containing inchikey and other relevant compound information.
+            Should at least contain smiles or inchi.
+        """
+        self.all_cdb.upsert_metadata_from_dataframe(df)
 
     # --------------------------------- retrievals --------------------------------
     # ---- by spec_id ----

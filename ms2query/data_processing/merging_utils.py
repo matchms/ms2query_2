@@ -184,6 +184,7 @@ def get_merged_spectra(spectra, clusters, mz_tol=0.01, min_frac=0.25):
         else:
             # singletons: normalize to sum=1 for consistency
             spectra_new.append(normalize_spectrum_sum(spectra[cluster[0]]))
+            # TODO: make sure metadata is handled consistently?
     return spectra_new
 
 
