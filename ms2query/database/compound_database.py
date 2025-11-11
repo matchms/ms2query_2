@@ -4,8 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
-from ms2query.data_processing import inchikey14_from_full, compute_morgan_fingerprints
-
+from ms2query.data_processing import compute_morgan_fingerprints, inchikey14_from_full
 
 
 # =========================
@@ -144,9 +143,6 @@ class CompoundDatabase:
                 inchi                 TEXT,
                 inchikey              TEXT UNIQUE,
 
-                -- legacy single blob (kept for compat)
-                fingerprint           BLOB,
-
                 -- sparse storage (pair)
                 fingerprint_bits      BLOB,
                 fingerprint_counts    BLOB,
@@ -157,11 +153,10 @@ class CompoundDatabase:
                 -- FP metadata
                 fp_nbits              INTEGER,
                 fp_radius             INTEGER,
-                fp_sparse             INTEGER,      -- 1/0
-                fp_count              INTEGER,      -- 1/0
+                fp_sparse             INTEGER,
+                fp_count              INTEGER,
                 fp_dtype              TEXT,
 
-                -- classyfire (may be missing in older DBs)
                 classyfire_class      TEXT,
                 classyfire_superclass TEXT
             );
@@ -225,7 +220,6 @@ class CompoundDatabase:
 
         # Decide on representation based on requested flags
         is_sparse = bool(cols["fp_sparse"])
-        is_count  = bool(cols["fp_count"])
 
         if is_sparse:
             # fp may be (bits, counts) or just bits
@@ -361,14 +355,15 @@ class CompoundDatabase:
                             WHEN COALESCE(LENGTH(excluded.fingerprint_dense),0) > 0
                             THEN excluded.fingerprint_dense ELSE {self.table}.fingerprint_dense END,
 
-                        fp_nbits  = COALESCE(excluded.fp_nbits,  {self.table}.fp_nbits),
+                        fp_nbits = COALESCE(excluded.fp_nbits,  {self.table}.fp_nbits),
                         fp_radius = COALESCE(excluded.fp_radius, {self.table}.fp_radius),
                         fp_sparse = COALESCE(excluded.fp_sparse, {self.table}.fp_sparse),
-                        fp_count  = COALESCE(excluded.fp_count,  {self.table}.fp_count),
-                        fp_dtype  = COALESCE(excluded.fp_dtype,  {self.table}.fp_dtype),
+                        fp_count = COALESCE(excluded.fp_count,  {self.table}.fp_count),
+                        fp_dtype = COALESCE(excluded.fp_dtype,  {self.table}.fp_dtype),
 
                         classyfire_class=COALESCE(excluded.classyfire_class, {self.table}.classyfire_class),
-                        classyfire_superclass=COALESCE(excluded.classyfire_superclass, {self.table}.classyfire_superclass)
+                        classyfire_superclass=COALESCE(excluded.classyfire_superclass,
+                          {self.table}.classyfire_superclass)
                 """, (
                     comp_id,
                     r.get("smiles"),
@@ -817,9 +812,6 @@ class SpecToCompoundMap:
                 spec_id INTEGER NOT NULL,
                 comp_id TEXT    NOT NULL,
                 PRIMARY KEY (spec_id),
-                -- implicit: comp_id should exist in {self.compound_table}.comp_id (not enforced here)
-                -- to enforce FK, you can enable PRAGMA foreign_keys=ON and create a FK to {self.compound_table}(comp_id)
-                -- if both tables are in the same SQLite file.
                 CHECK (length(comp_id) = 14)
             );
             CREATE INDEX IF NOT EXISTS idx_spec_to_comp_comp ON {self.table}(comp_id);
@@ -935,7 +927,7 @@ def map_from_spectraldb_metadata(
                 "inchikey": ik_full,
                 "classyfire_class": r.get("classyfire_class"),
                 "classyfire_superclass": r.get("classyfire_superclass"),
-                "fingerprint": None,  # still defer; backfill later
+                "fingerprint": None,  # backfill later
             })
 
     # Bulk linking
@@ -960,7 +952,7 @@ def map_from_spectraldb_metadata(
 
     n_mapped = len(to_link)
 
-    # tidy
+    # Close connections
     mapper.close()
     compdb.close()
     s_conn.close()

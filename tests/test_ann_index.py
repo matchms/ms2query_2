@@ -1,4 +1,3 @@
-import io
 import json
 import sqlite3
 from typing import List, Tuple
@@ -6,8 +5,8 @@ import numpy as np
 import pytest
 from matchms import Spectrum
 from ms2query.database import ANNIndex
-from ms2query.database.spectra_merging import ensure_merged_tables
 from ms2query.database.database_utils import ndarray_to_blob
+from ms2query.database.spectra_merging import ensure_merged_tables
 
 
 @pytest.fixture()

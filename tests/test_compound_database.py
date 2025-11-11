@@ -4,13 +4,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from ms2query.data_processing import compute_morgan_fingerprints
 from ms2query.database.compound_database import (
     CompoundDatabase,
     SpecToCompoundMap,
     get_unique_compounds_from_spectraldb,
     map_from_spectraldb_metadata,
 )
-from ms2query.data_processing import compute_morgan_fingerprints
 
 
 # -------------------------

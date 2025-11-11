@@ -386,7 +386,10 @@ class ANNIndex:
             cur.execute("SELECT merged_id, embedding FROM merged_embeddings ORDER BY merged_id ASC;")
         else:
             ph = ",".join("?" for _ in ids)
-            cur.execute(f"SELECT merged_id, embedding FROM merged_embeddings WHERE merged_id IN ({ph}) ORDER BY merged_id ASC;", ids)
+            cur.execute(
+                f"SELECT merged_id, embedding FROM merged_embeddings WHERE merged_id IN ({ph}) ORDER BY merged_id ASC;",
+                ids
+                )
 
         mids = []
         vecs = []
