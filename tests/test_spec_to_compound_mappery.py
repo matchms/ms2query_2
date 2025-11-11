@@ -93,7 +93,7 @@ def test_mapping_and_compound_creation(tmp_path):
     df_map = mapper.get_comp_id_for_specs([1, 2, 3])
     assert set(df_map.columns) == {"spec_id", "comp_id"}
     # spec_id 3 has no inchikey -> may be missing
-    assert set(df_map["spec_id"]) <= {1, 2, 3}
+    assert set(df_map["spec_id"]) <= {"1", "2", "3"}
     # comp_ids are 14 chars
     assert all(len(c) == 14 for c in df_map["comp_id"])
     mapper.close()
@@ -125,7 +125,7 @@ def test_mapper_link_and_get(tmp_path):
 
     df = mapper.get_comp_id_for_specs([122, 123, 124, 125])
     assert set(df.columns) == {"spec_id", "comp_id"}
-    assert set(df["spec_id"]) == {123, 124, 125}
+    assert set(df["spec_id"]) == {"123", "124", "125"}
 
     mapper.close()
 

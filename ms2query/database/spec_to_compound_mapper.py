@@ -47,7 +47,7 @@ class SpecToCompoundMap:
         # here: index both sides for fast lookup.
         cur.executescript(f"""
             CREATE TABLE IF NOT EXISTS {self.table}(
-                spec_id INTEGER NOT NULL,
+                spec_id TEXT NOT NULL,
                 comp_id TEXT    NOT NULL,
                 PRIMARY KEY (spec_id),
                 CHECK (length(comp_id) = 14)
@@ -58,7 +58,7 @@ class SpecToCompoundMap:
 
     # ---------- API ----------
 
-    def link(self, spec_id: int, comp_id: str):
+    def link(self, spec_id: str, comp_id: str):
         """Insert or replace a single mapping."""
         if not comp_id or len(comp_id) != 14:
             raise ValueError("comp_id must be inchikey14 (14 characters).")
@@ -84,7 +84,7 @@ class SpecToCompoundMap:
             cur.execute("ROLLBACK")
             raise
 
-    def get_comp_id_for_specs(self, spec_ids: List[int]) -> pd.DataFrame:
+    def get_comp_id_for_specs(self, spec_ids: List[str]) -> pd.DataFrame:
         """Return a DataFrame with columns [spec_id, comp_id] for the provided spec_ids."""
         if not spec_ids:
             return pd.DataFrame(columns=["spec_id", "comp_id"])
@@ -95,7 +95,7 @@ class SpecToCompoundMap:
         ).fetchall()
         return pd.DataFrame(rows, columns=["spec_id", "comp_id"])
 
-    def get_specs_for_comp(self, comp_id: str) -> List[int]:
+    def get_specs_for_comp(self, comp_id: str) -> List[str]:
         """Return list of spec_ids for a given comp_id."""
         rows = self._conn.execute(f"SELECT spec_id FROM {self.table} WHERE comp_id = ?", (comp_id,)).fetchall()
         return [r[0] for r in rows]
@@ -149,7 +149,7 @@ def map_from_spectraldb_metadata(
 
     for r in rows:
         r = dict(r)
-        spec_id = int(r["spec_id"])
+        spec_id = r["spec_id"]
         ik_full = r.get("inchikey")
         if not ik_full:
             continue
