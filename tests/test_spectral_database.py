@@ -58,7 +58,8 @@ def test_add_and_retrieve_single(tmp_db):
     ids = tmp_db.add_spectra([s])
     assert isinstance(ids, list) and len(ids) == 1
     sid = ids[0]
-    assert isinstance(sid, int)
+    assert isinstance(sid, str)
+    assert sid == s.spectrum_hash(), "Returned spec_id should match spectrum hash"
 
     out = tmp_db.get_spectra_by_ids([sid])
     assert len(out) == 1
@@ -150,3 +151,31 @@ def test_missing_ids_handling(tmp_db, spectra_small):
     assert [s.metadata["spec_id"] for s in out_spectra] == [ids[1]]
     assert list(out_meta["spec_id"]) == [ids[1]]
     assert len(out_frags) == 1
+
+
+def test_add_duplicates_are_ignored_and_ids_repeat(tmp_db, spectra_small):
+    # First insert
+    ids_first = tmp_db.add_spectra(spectra_small)
+    assert len(ids_first) == 3
+    # Count rows after first insert
+    n1 = tmp_db.sql_query("SELECT COUNT(*) AS n FROM spectra").iloc[0]["n"]
+    assert n1 == 3
+
+    # Insert the exact same spectra again
+    ids_second = tmp_db.add_spectra(spectra_small)
+    assert len(ids_second) == 3
+
+    # Returned IDs must be identical to the first time (hashes are deterministic)
+    assert ids_second == ids_first
+
+    # Row count must still be 3 (duplicates were ignored)
+    n2 = tmp_db.sql_query("SELECT COUNT(*) AS n FROM spectra").iloc[0]["n"]
+    assert n2 == 3
+
+    # ids() should list each unique spec_id exactly once
+    all_ids = set(tmp_db.ids())
+    assert all_ids == set(ids_first) == set(ids_second)
+
+    # Verify retrieval still works with repeated IDs in the request
+    out = tmp_db.get_spectra_by_ids([ids_first[0], ids_first[0], "nonexistent"])
+    assert [s.metadata["spec_id"] for s in out] == [ids_first[0], ids_first[0]]

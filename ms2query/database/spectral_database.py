@@ -1,7 +1,7 @@
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 import numpy as np
 import pandas as pd
 from matchms import Spectrum
@@ -23,9 +23,7 @@ def _as_float32_bytes(a: np.ndarray) -> bytes:
     return a.tobytes(order="C")
 
 def _from_float32_bytes(b: bytes, n: int) -> np.ndarray:
-    # n_peaks defines how many valid values
     arr = np.frombuffer(b, dtype=np.float32, count=n)
-    # Make it writeable for downstream use
     return np.array(arr, copy=True)
 
 def _normalize_metadata(md: Dict[str, Any], fields: Iterable[str]) -> Dict[str, Any]:
@@ -65,8 +63,8 @@ class SpectralDatabase:
 
     # ---------- public API ----------
 
-    def add_spectra(self, spectra: List[Spectrum]) -> List[int]:
-        f"""Add {self.table} to the database. Returns assigned spec_ids."""
+    def add_spectra(self, spectra: List[Spectrum]) -> List[str]:
+        """Add spectra to the database. Returns spec_ids (spectrum hashes)."""
         if not spectra:
             return []
 
@@ -79,60 +77,34 @@ class SpectralDatabase:
         """)
         cur.execute("BEGIN")
 
-        spec_ids: List[int] = []
-        # Try to use RETURNING (SQLite 3.35+), fallback otherwise
-        supports_returning = self._supports_returning()
+        spec_ids: List[str] = []
 
-        sql = (
-            f"INSERT INTO {self.table} (mz_blob, intensity_blob, n_peaks, "
-            + ", ".join(self.metadata_fields)
-            + ") VALUES (?,?,?,?,"
-            + ",".join("?" for _ in self.metadata_fields[1:])  # first ? after n_peaks already placed
-            + ")"
-        )
-        # Adjust because above mistakenly adds one extra '?'; correct it:
-        # Let's build positions precisely:
-        placeholders = ",".join("?" for _ in range(3 + len(self.metadata_fields)))
-        sql = f"INSERT INTO {self.table} (mz_blob, intensity_blob, n_peaks, {', '.join(self.metadata_fields)}) VALUES ({placeholders})"
-        if supports_returning:
-            sql_ret = sql + " RETURNING spec_id"
+        # Build INSERT with explicit spec_id; use OR IGNORE to avoid duplicate rows
+        col_list = ["spec_id", "mz_blob", "intensity_blob", "n_peaks"] + self.metadata_fields
+        placeholders = ",".join("?" for _ in col_list)
+        sql = f"INSERT OR IGNORE INTO {self.table} ({', '.join(col_list)}) VALUES ({placeholders})"
 
         try:
             for sp in spectra:
-                # matchms Spectrum exposes peaks as arrays; be robust to attribute names
-                mz: Optional[np.ndarray] = getattr(sp, "mz", None)
-                intens: Optional[np.ndarray] = getattr(sp, "intensities", None)
-                # matchms >=0.20 stores as properties; otherwise: sp.peaks.mz, sp.peaks.intensities
-                # TODO: clean up and only focus on newer matchms
-                if mz is None or intens is None:
-                    peaks = getattr(sp, "peaks", None)
-                    if peaks is None:
-                        raise ValueError("Spectrum lacks fragments (no mz/intensities).")
-                    mz = np.asarray(peaks.mz, dtype=np.float32)
-                    intens = np.asarray(peaks.intensities, dtype=np.float32)
-                else:
-                    mz = np.asarray(mz, dtype=np.float32)
-                    intens = np.asarray(intens, dtype=np.float32)
-
+                mz = sp.mz
+                intens = sp.intensities
                 if mz.shape[0] != intens.shape[0]:
                     raise ValueError("m/z and intensity arrays have different lengths.")
 
                 n = int(mz.shape[0])
-                md = getattr(sp, "metadata", {}) or {}
-                md_norm = _normalize_metadata(md, self.metadata_fields)
+                md_norm = _normalize_metadata(sp.metadata, self.metadata_fields)
 
+                spec_hash = str(sp.spectrum_hash())  # <- string spec_id
                 values = [
+                    spec_hash,
                     _as_float32_bytes(mz),
                     _as_float32_bytes(intens),
                     n,
                 ] + [md_norm[k] for k in self.metadata_fields]
 
-                if supports_returning:
-                    row = cur.execute(sql_ret, values).fetchone()
-                    spec_ids.append(int(row[0]))
-                else:
-                    cur.execute(sql, values)
-                    spec_ids.append(cur.lastrowid)
+                cur.execute(sql, values)
+                # Whether inserted or ignored as duplicate, we return the hash
+                spec_ids.append(spec_hash)
 
             cur.execute("COMMIT")
         except Exception:
@@ -141,15 +113,16 @@ class SpectralDatabase:
 
         return spec_ids
 
-    def ids(self) -> List[int]:
-        """Return all spec_ids in the database."""
+    def ids(self) -> List[str]:
+        """Return all spec_ids (hash strings) in the database."""
         cur = self._conn.cursor()
         rows = cur.execute(f"SELECT spec_id FROM {self.table}").fetchall()
-        return [int(row["spec_id"]) for row in rows]
+        return [str(row["spec_id"]) for row in rows]
 
-    def get_spectra_by_ids(self, specIDs: List[int]) -> List[Spectrum]:
+    def get_spectra_by_ids(self, specIDs: List[str]) -> List[Spectrum]:
         """Retrieve full Spectrum objects for given specIDs (order preserved, missing IDs skipped)."""
-        rows = self._fetch_rows_by_ids(specIDs, cols="spec_id, mz_blob, intensity_blob, n_peaks, " + ", ".join(self.metadata_fields))
+        rows = self._fetch_rows_by_ids(
+            specIDs, cols="spec_id, mz_blob, intensity_blob, n_peaks, " + ", ".join(self.metadata_fields))
         by_id = {row["spec_id"]: row for row in rows}
 
         result: List[Spectrum] = []
@@ -165,7 +138,7 @@ class SpectralDatabase:
             result.append(Spectrum(mz=mz, intensities=inten, metadata=md))
         return result
 
-    def get_fragments_by_ids(self, specIDs: List[int]) -> List[Tuple[np.ndarray, np.ndarray]]:
+    def get_fragments_by_ids(self, specIDs: List[str]) -> List[Tuple[np.ndarray, np.ndarray]]:
         """Retrieve (mz, intensity) arrays for given specIDs (order preserved, missing IDs skipped)."""
         rows = self._fetch_rows_by_ids(specIDs, cols="spec_id, mz_blob, intensity_blob, n_peaks")
         by_id = {row["spec_id"]: row for row in rows}
@@ -181,12 +154,11 @@ class SpectralDatabase:
             out.append((mz, inten))
         return out
 
-    def get_metadata_by_ids(self, specIDs: List[int]) -> pd.DataFrame:
+    def get_metadata_by_ids(self, specIDs: List[str]) -> pd.DataFrame:
         """Retrieve metadata for given specIDs (order preserved)."""
         cols = ["spec_id"] + self.metadata_fields
         rows = self._fetch_rows_by_ids(specIDs, cols=", ".join(cols))
         df = pd.DataFrame(rows, columns=cols)
-        # Preserve caller order
         if not df.empty:
             order = {sid: i for i, sid in enumerate(specIDs)}
             df["__order"] = df["spec_id"].map(order)
@@ -199,15 +171,7 @@ class SpectralDatabase:
 
     # ---------- internal ----------
 
-    def _supports_returning(self) -> bool:
-        try:
-            v = self._conn.execute("select sqlite_version()").fetchone()[0]
-            major, minor, patch = (int(x) for x in v.split("."))
-            return (major, minor, patch) >= (3, 35, 0)
-        except Exception:
-            return False
-
-    def _fetch_rows_by_ids(self, specIDs: List[int], cols: str) -> List[sqlite3.Row]:
+    def _fetch_rows_by_ids(self, specIDs: List[str], cols: str) -> List[sqlite3.Row]:
         if not specIDs:
             return []
         placeholders = ",".join("?" for _ in specIDs)
@@ -228,14 +192,14 @@ class SpectralDatabase:
 
         cur.executescript(f"""
             CREATE TABLE IF NOT EXISTS {self.table}(
-                spec_id       INTEGER PRIMARY KEY AUTOINCREMENT,
-                mz_blob       BLOB NOT NULL,
+                spec_id        TEXT PRIMARY KEY NOT NULL,
+                mz_blob        BLOB NOT NULL,
                 intensity_blob BLOB NOT NULL,
-                n_peaks       INTEGER NOT NULL,
+                n_peaks        INTEGER NOT NULL,
                 {md_cols_clause}
             );
-            CREATE INDEX IF NOT EXISTS idx_inchikey ON spectra(inchikey);
-            CREATE INDEX IF NOT EXISTS idx_precursor_mz ON spectra(precursor_mz);
+            CREATE INDEX IF NOT EXISTS idx_{self.table}_inchikey ON {self.table}(inchikey);
+            CREATE INDEX IF NOT EXISTS idx_{self.table}_precursor_mz ON {self.table}(precursor_mz);
         """)
         self._conn.commit()
 
