@@ -386,6 +386,105 @@ class CompoundDatabase:
             raise
         return comp_ids
 
+    def upsert_metadata_from_dataframe(
+        self,
+        df: pd.DataFrame,
+        *,
+        colmap: Optional[Dict[str, str]] = None,
+        staging_table: str = "_staging_compounds",
+    ) -> dict:
+        """
+        Ultra-simple loader for compound metadata (no fingerprints).
+        Accepts a DataFrame that has at least an 'inchikey' column (can be remapped via `colmap`).
+        Extra columns in the DataFrame are ignored.
+
+        Steps:
+        1) Build comp_id = inchikey14_from_full(inchikey)
+        2) Keep only [comp_id, smiles, inchi, inchikey, classyfire_class, classyfire_superclass]
+        3) Load into a temporary staging table via pandas.to_sql
+        4) Single INSERT ... SELECT ... ON CONFLICT(comp_id) DO UPDATE to upsert
+
+        Returns:
+        {"rows": int, "valid": int, "inserted_or_updated": int, "skipped_no_or_bad_inchikey": int}
+        """
+        if df is None or df.empty:
+            return {"rows": 0, "valid": 0, "inserted_or_updated": 0, "skipped_no_or_bad_inchikey": 0}
+
+        # Map incoming columns -> our names (anything else is ignored)
+        default_map = {
+            "inchikey": "inchikey",
+            "smiles": "smiles",
+            "inchi": "inchi",
+            "classyfire_class": "classyfire_class",
+            "classyfire_superclass": "classyfire_superclass",
+        }
+        cmap = {k: (colmap.get(k) if colmap and k in colmap else v) for k, v in default_map.items()}
+
+        if cmap["inchikey"] not in df.columns:
+            raise ValueError("DataFrame must contain an 'inchikey' column (or provide colmap).")
+
+        # Build a compact frame with just the columns we care about
+        work = pd.DataFrame()
+        work["inchikey"] = df[cmap["inchikey"]].astype(str)
+
+        # Compute comp_id (inchikey14); drop invalid/missing
+        work["comp_id"] = work["inchikey"].map(inchikey14_from_full)
+        valid_mask = work["comp_id"].notna() & work["comp_id"].astype(str).str.len().eq(14)
+        skipped = int((~valid_mask).sum())
+
+        work = work.loc[valid_mask, ["comp_id", "inchikey"]].copy()
+
+        # Optional columns (use .get to avoid KeyErrors)
+        for k in ("smiles", "inchi", "classyfire_class", "classyfire_superclass"):
+            src = cmap[k]
+            work[k] = df[src] if src in df.columns else None
+
+        # Deduplicate on comp_id, keeping the last occurrence
+        work = work.drop_duplicates(subset=["comp_id"], keep="last").reset_index(drop=True)
+
+        # Stage into SQLite (replace the staging table each call)
+        work.to_sql(staging_table, self._conn, if_exists="replace", index=False)
+
+        # Upsert from staging into compounds (fingerprint columns remain untouched/NULL)
+        cur = self._conn.cursor()
+        cur.execute("BEGIN")
+        try:
+            # Use INSERT ... SELECT with ON CONFLICT(comp_id) DO UPDATE
+            cur.execute(f"""
+                INSERT INTO {self.table} (
+                    comp_id, smiles, inchi, inchikey,
+                    classyfire_class, classyfire_superclass
+                )
+                SELECT comp_id, smiles, inchi, inchikey, classyfire_class, classyfire_superclass
+                FROM {staging_table}
+                ON CONFLICT(comp_id) DO UPDATE SET
+                    smiles=COALESCE(excluded.smiles, {self.table}.smiles),
+                    inchi=COALESCE(excluded.inchi, {self.table}.inchi),
+                    inchikey=COALESCE(excluded.inchikey, {self.table}.inchikey),
+                    classyfire_class=COALESCE(excluded.classyfire_class, {self.table}.classyfire_class),
+                    classyfire_superclass=COALESCE(excluded.classyfire_superclass, {self.table}.classyfire_superclass)
+            """)
+            affected = cur.rowcount if cur.rowcount is not None else 0
+            # Clean up staging
+            cur.execute(f"DROP TABLE IF EXISTS {staging_table}")
+            cur.execute("COMMIT")
+        except Exception:
+            cur.execute("ROLLBACK")
+            # ensure staging dropped even on error
+            try:
+                cur.execute(f"DROP TABLE IF EXISTS {staging_table}")
+                self._conn.commit()
+            except Exception:
+                pass
+            raise
+
+        return {
+            "rows": int(len(df)),
+            "valid": int(len(work)),
+            "inserted_or_updated": int(affected),
+            "skipped_no_or_bad_inchikey": int(skipped),
+        }
+
     # ---------- READ ----------
 
     def _row_to_fp(self, row: sqlite3.Row):
