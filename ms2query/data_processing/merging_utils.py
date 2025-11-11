@@ -3,6 +3,7 @@ from matchms import Spectrum
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
 from ms2query.metrics import compute_cosine_greedy
+from .spectra_processing import normalize_spectrum_sum
 
 
 METADATA_FIELDS_FROM_FIRST = [
@@ -12,19 +13,6 @@ METADATA_FIELDS_SUM = ["instrument_type", "adduct", "collision_energy"]
 
 
 # --------------------- Helper functions ---------------------
-def normalize_spectrum_sum(s):
-    """Return a spectrum with intensities normalized to sum=1 (if possible)."""
-    mz = np.asarray(s.peaks.mz, dtype=float)
-    intens = np.asarray(s.peaks.intensities, dtype=float)
-    tot = intens.sum()
-    if tot > 0:
-        intens = intens / tot
-
-    # Build a shallow copy with normalized peaks but same metadata
-    md = dict(s.metadata) if hasattr(s, "metadata") else {}
-    return Spectrum(mz=mz, intensities=intens, metadata=md)
-
-
 def _merge_cluster_to_consensus(cluster_spectra, mz_tol=0.01, min_frac=0.25):
     """
     Build a consensus spectrum from a list of matchms Spectra.
