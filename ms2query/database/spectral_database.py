@@ -1,10 +1,13 @@
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from matchms import Spectrum
+from ms2deepscore.models import compute_embedding_array
+from ms2deepscore.models import load_model as _ms2ds_load_model
+from ms2query.data_processing import normalize_spectrum_sum
 
 
 # ------------ helpers ------------
@@ -24,6 +27,12 @@ def _as_float32_bytes(a: np.ndarray) -> bytes:
 
 def _from_float32_bytes(b: bytes, n: int) -> np.ndarray:
     arr = np.frombuffer(b, dtype=np.float32, count=n)
+    return np.array(arr, copy=True)
+
+def _from_float32_bytes_known_dim(b: bytes, d: int) -> np.ndarray:
+    arr = np.frombuffer(b, dtype=np.float32, count=d)
+    if arr.size != d:
+        raise ValueError(f"Expected {d} floats in embedding blob, found {arr.size}.")
     return np.array(arr, copy=True)
 
 def _normalize_metadata(md: Dict[str, Any], fields: Iterable[str]) -> Dict[str, Any]:
@@ -54,6 +63,8 @@ class SpectralDatabase:
         "instrument_type", "adduct", "collision_energy"
     ])
     _conn: sqlite3.Connection = field(init=False, repr=False)
+    _ms2ds_model_path: Optional[str] = field(default=None, repr=False)
+    _ms2ds_model: Any = field(default=None, repr=False)
 
     def __post_init__(self):
         Path(self.sqlite_path).parent.mkdir(parents=True, exist_ok=True)
@@ -169,6 +180,181 @@ class SpectralDatabase:
         """Run a raw SQL SELECT and return a DataFrame."""
         return pd.read_sql_query(query, self._conn)
 
+    def ensure_embeddings_schema(self, table: str = "embeddings") -> None:
+        """
+        Ensure an embeddings table exists with:
+          - spec_id TEXT PRIMARY KEY
+          - d      INTEGER (dimension)
+          - vec    BLOB (float32[d], raw)
+        """
+        cur = self._conn.cursor()
+        cur.executescript(f"""
+            CREATE TABLE IF NOT EXISTS {table}(
+                spec_id TEXT PRIMARY KEY NOT NULL,
+                d       INTEGER NOT NULL,
+                vec     BLOB NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_{table}_d ON {table}(d);
+        """)
+        self._conn.commit()
+
+    def load_ms2deepscore_model(self, model_path: str):
+        """
+        Lazy-load and cache the MS2DeepScore model, keeping path for reproducible calls.
+        """
+        if self._ms2ds_model is None or (self._ms2ds_model_path != model_path):
+            model = _ms2ds_load_model(model_path)
+            model.eval()
+            self._ms2ds_model = model
+            self._ms2ds_model_path = model_path
+        return self._ms2ds_model
+
+    def compute_embeddings_to_sqlite(
+        self,
+        model_path: str,
+        *,
+        spectra_table: Optional[str] = None,
+        embeddings_table: str = "embeddings",
+        batch_rows: int = 1024,
+        only_missing: bool = True,
+        normalize_query_spectra: bool = True,
+        commit_every: int = 0,
+    ) -> int:
+        """
+        Compute MS2DeepScore embeddings for rows in `spectra_table` and write to `embeddings_table`.
+
+        - Uses `matchms.Spectrum` objects reconstructed from the stored peaks & metadata.
+        - If `normalize_query_spectra`, applies ms2query's normalize_spectrum_sum().
+        - Stores raw float32 vectors (no extra header) with their dimension `d`.
+        """
+        # TODO: add batch_size to speed up?
+        spectra_table = spectra_table or self.table
+        self._ensure_schema()  # spectra schema
+        self.ensure_embeddings_schema(embeddings_table)
+
+        cur = self._conn.cursor()
+        cur.execute("PRAGMA foreign_keys = ON;")
+
+        if only_missing:
+            query = f"""
+                SELECT s.spec_id, s.mz_blob, s.intensity_blob, s.n_peaks,
+                       s.precursor_mz, s.ionmode, s.charge
+                FROM {spectra_table} s
+                LEFT JOIN {embeddings_table} e ON s.spec_id = e.spec_id
+                WHERE e.spec_id IS NULL
+                ORDER BY s.spec_id ASC;
+            """
+        else:
+            query = f"""
+                SELECT spec_id, mz_blob, intensity_blob, n_peaks,
+                       precursor_mz, ionmode, charge
+                FROM {spectra_table}
+                ORDER BY spec_id ASC;
+            """
+        cur.execute(query)
+
+        model = self.load_ms2deepscore_model(model_path)
+
+        inserted = 0
+        buf: List[Tuple[str, bytes, bytes, int, float, str, Optional[int]]] = []
+        done_since_commit = 0
+
+        def flush(batch) -> int:
+            if not batch:
+                return 0
+            specs: List[Spectrum] = []
+            sids: List[str] = []
+            for sid, mz_blob, it_blob, n_peaks, prec_mz, ionmode, charge in batch:
+                mz = _from_float32_bytes(mz_blob, int(n_peaks))
+                it = _from_float32_bytes(it_blob, int(n_peaks))
+                sp = Spectrum(mz=mz, intensities=it, metadata={
+                    "precursor_mz": float(prec_mz) if prec_mz is not None else None,
+                    "ionmode": ionmode,
+                    "charge": charge,
+                    "spec_id": sid,
+                })
+                sp = normalize_spectrum_sum(sp) if normalize_query_spectra else sp
+                specs.append(sp)
+                sids.append(sid)
+
+            emb = compute_embedding_array(model, specs).astype(np.float32, copy=False)
+            d = int(emb.shape[1])
+            q = f"INSERT OR REPLACE INTO {embeddings_table} (spec_id, d, vec) VALUES (?, ?, ?);"
+            with self._conn:
+                for sid, vec in zip(sids, emb):
+                    self._conn.execute(q, (sid, d, sqlite3.Binary(_as_float32_bytes(vec))))
+            return len(batch)
+
+        while True:
+            rows = cur.fetchmany(batch_rows)
+            if not rows:
+                break
+            buf.extend(rows)
+            while len(buf) >= batch_rows:
+                inserted += flush(buf[:batch_rows])
+                buf = buf[batch_rows:]
+                done_since_commit += batch_rows
+                if commit_every and done_since_commit >= commit_every:
+                    self._conn.commit()
+                    done_since_commit = 0
+
+        inserted += flush(buf)
+        return inserted
+
+    def get_embeddings(
+        self,
+        ids: Optional[List[str]] = None,
+        *,
+        embeddings_table: str = "embeddings",
+        normalized: bool = True,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Fetch embeddings by spec_id (or all if ids=None).
+        Returns (ids[str], embeddings[float32 of shape (n, d)]).
+        If normalized=True, L2-normalize (recommended for cosine).
+        """
+        cur = self._conn.cursor()
+        if ids is None:
+            cur.execute(f"SELECT spec_id, d, vec FROM {embeddings_table} ORDER BY spec_id ASC;")
+        else:
+            ph = ",".join("?" for _ in ids)
+            cur.execute(f"SELECT spec_id, d, vec FROM {embeddings_table} WHERE spec_id IN ({ph}) ORDER BY spec_id ASC;", ids)
+
+        sids: List[str] = []
+        vecs: List[np.ndarray] = []
+        d_first: Optional[int] = None
+        for sid, d, blob in cur:
+            d = int(d)
+            if d_first is None:
+                d_first = d
+            elif d_first != d:
+                raise ValueError(f"Mixed embedding dimensions in {embeddings_table}: {d_first} vs {d}")
+            sids.append(str(sid))
+            vecs.append(_from_float32_bytes_known_dim(blob, d))
+        if not vecs:
+            return np.empty((0,), dtype=str), np.empty((0, 0), dtype=np.float32)
+
+        X = np.vstack(vecs).astype(np.float32, copy=False)
+        if normalized:
+            n = np.linalg.norm(X, axis=1, keepdims=True)
+            n = np.maximum(n, 1e-12)
+            X = X / n
+        return np.asarray(sids, dtype=object), X
+
+    def get_embedding_for_id(
+        self,
+        spec_id: str,
+        *,
+        embeddings_table: str = "embeddings",
+        normalized: bool = True,
+    ) -> Optional[np.ndarray]:
+        ids, X = self.get_embeddings([spec_id], embeddings_table=embeddings_table, normalized=normalized)
+        return X[0] if X.shape[0] else None
+
+    # expose raw connection for ANN builders
+    @property
+    def connection(self) -> sqlite3.Connection:
+        return self._conn
     # ---------- internal ----------
 
     def _fetch_rows_by_ids(self, specIDs: List[str], cols: str) -> List[sqlite3.Row]:
