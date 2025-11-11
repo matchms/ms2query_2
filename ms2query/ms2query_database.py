@@ -61,6 +61,15 @@ class MS2QueryDatabase:
     ) -> Dict[str, int]:
         """Ingest spectra -> (optionally) create spec↔comp links & upsert compounds.
 
+        Parameters
+        ----------
+        spectra: List[matchms.Spectrum]
+            List of matchms Spectrum objects to be inserted into the database.
+        map_compounds: bool, default=True
+            Whether to map spectra to compounds based on metadata InChIKeys.
+        create_missing_compounds: bool, default=True
+            Whether to create compound entries for spectra that do not have a matching compound yet.
+
         Returns counts: {"n_inserted_spectra": int, "n_mapped": int, "n_new_compounds": int}
         """
         spec_ids = self.ref_sdb.add_spectra(spectra)
@@ -74,16 +83,6 @@ class MS2QueryDatabase:
                 spectra_table=self.ref_spectra_table,
                 compound_table=self.ref_compound_table,
                 mapping_table="spec_to_comp",
-                create_missing_compounds=create_missing_compounds,
-            )
-            # ONLY PLACEHOLDER --> LATER: ADD COMPOUNDS FROM LIST/FILE
-            _, _ = map_from_spectraldb_metadata(
-                spectral_db_sqlite_path=self.sqlite_path,
-                mapping_sqlite_path=self.sqlite_path,
-                compounds_sqlite_path=self.sqlite_path,
-                spectra_table=self.ref_spectra_table,
-                compound_table=self.non_annotated_compound_table,
-                mapping_table="spec_to_comp_all",
                 create_missing_compounds=create_missing_compounds,
             )
         return {
