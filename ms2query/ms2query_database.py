@@ -32,7 +32,7 @@ class MS2QueryDatabase:
     non_annotated_compound_table: str = "compounds_all"
     metadata_fields: List[str] = field(default_factory=lambda: [
         "precursor_mz", "ionmode", "smiles", "inchikey", "inchi", "name",
-        "instrument_type", "adduct", "collision_energy"
+        "charge", "instrument_type", "adduct", "collision_energy"
     ])
 
     # component singletons

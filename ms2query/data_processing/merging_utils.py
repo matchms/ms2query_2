@@ -7,7 +7,7 @@ from .spectra_processing import normalize_spectrum_sum
 
 
 METADATA_FIELDS_FROM_FIRST = [
-    "ionmode", "smiles", "inchikey", "inchi", "name", "precursor_mz",
+    "ionmode", "smiles", "inchikey", "inchi", "name", "precursor_mz", "charge",
 ]
 METADATA_FIELDS_SUM = ["instrument_type", "adduct", "collision_energy"]
 
