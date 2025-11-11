@@ -297,3 +297,68 @@ def compute_cosine_greedy(cosine_obj, spectra):
     scores_array = np.zeros(shape=(n_rows, n_cols), dtype=cosine_obj.score_datatype)
     scores_array[idx_row, idx_col] = scores_data.reshape(-1)
     return scores_array
+
+
+
+# ======================
+# Compute generalized Tanimoto L1 for sparse fingerprints (in CSR format)
+# ======================
+
+@numba.njit(parallel=True, fastmath=True)
+def _sum_min_for_rows(
+    q_indices: np.ndarray, q_data: np.ndarray,
+    Y_indptr: np.ndarray, Y_indices: np.ndarray, Y_data: np.ndarray,
+    out_sum_min: np.ndarray
+):
+    """
+    Two-pointer merge to compute sum(min(q,y)) for each row y in Y.
+    """
+    for r in prange(out_sum_min.shape[0]):
+        start = Y_indptr[r]
+        end = Y_indptr[r + 1]
+        i = 0
+        j = start
+        s = 0.0
+        while i < q_indices.size and j < end:
+            qi = q_indices[i]
+            yi = Y_indices[j]
+            if qi == yi:
+                # non-negative values → min() is simple
+                v = q_data[i] if q_data[i] < Y_data[j] else Y_data[j]
+                s += v
+                i += 1
+                j += 1
+            elif qi < yi:
+                i += 1
+            else:
+                j += 1
+        out_sum_min[r] = s
+
+
+def tanimoto_l1_query_vs_block(
+    q: sp.csr_matrix,
+    Y: sp.csr_matrix,
+    sum1: float,
+    sumsY: np.ndarray,
+) -> np.ndarray:
+    """
+    Compute generalized Tanimoto(x,y) with L1/min-max definition, fully sparse.
+    - q: CSR (1, D)
+    - Y: CSR (n, D)
+    - sum1: L1 norm of q (float)
+    - sumsY: L1 norms of Y rows (float array of size n)
+    Returns: scores (n,)
+    """
+    # Compute sum_min for each candidate via two-pointer merges
+    out_sum_min = np.zeros(Y.shape[0], dtype=np.float64)
+    _sum_min_for_rows(
+        q.indices.astype(np.int32), q.data.astype(np.float32),
+        Y.indptr.astype(np.int64), Y.indices.astype(np.int32), Y.data.astype(np.float32),
+        out_sum_min
+    )
+    # tanimoto = sum_min / (sum1 + sumY - sum_min)
+    denom = sum1 + sumsY - out_sum_min
+    # avoid zero division
+    denom[denom <= 0.0] = 1e-12
+    scores = (out_sum_min / denom).astype(np.float32)
+    return scores
