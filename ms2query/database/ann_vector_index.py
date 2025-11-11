@@ -152,13 +152,19 @@ class EmbeddingIndex(_BaseANN):
             "post_init_ef": post_init_ef,
         }
 
+    def _count_rows(self, cursor: sqlite3.Cursor, table: str, where_clause: str) -> int:
+        sql = f"SELECT COUNT(1) FROM {table} {where_clause};"
+        cursor.execute(sql)
+        (n,) = cursor.fetchone()
+        return int(n)
+
     def build_index_from_sqlite(
         self,
-        db: sqlite3.Connection,                 # or SpectralDatabase.connection
+        db: sqlite3.Connection,
         *,
         embeddings_table: str = "embeddings",
-        where_sql: Optional[str] = None,       # optional filter, e.g. "WHERE d=500"
-        batch_rows: int = 100_000,             # tune to memory budget
+        where_sql: Optional[str] = None,
+        batch_rows: int = 100_000,
         M: int = 16,
         ef_construction: int = 200,
         post_init_ef: int = 200,
@@ -166,73 +172,93 @@ class EmbeddingIndex(_BaseANN):
     ) -> int:
         """
         Streams embeddings from SQLite and constructs an HNSW index in-place.
+        Indexing is performed with a SINGLE addDataPointBatch call to avoid
+        backend-specific issues when adding multiple batches before createIndex.
+
+        Parameters
+        ----------
+        db : sqlite3.Connection
+            Database connection (or SpectralDatabase.connection)
+        embeddings_table : str
+            Name of the table containing embeddings
+        where_sql : Optional[str]
+            Optional filter clause (e.g., "d=500" or "WHERE d=500")
+        batch_rows : int
+            Number of rows to process before adding to index (memory tuning)
+        M : int
+            HNSW M parameter (connectivity)
+        ef_construction : int
+            HNSW efConstruction parameter
+        post_init_ef : int
+            HNSW query-time ef parameter
+        l2_normalize : bool
+            Whether to L2-normalize vectors before indexing
 
         Returns
         -------
-        int: number of vectors indexed
+        int
+            Number of vectors indexed
         """
         cur = db.cursor()
 
-        # Detect dimension (enforce uniform d)
-        d_sql = f"SELECT d FROM {embeddings_table} GROUP BY d ORDER BY d;"
-        dims = [int(r[0]) for r in cur.execute(d_sql)]
-        if not dims:
-            raise ValueError(f"No rows in {embeddings_table}.")
-        if len(dims) > 1:
-            raise ValueError(f"Mixed dimensions in {embeddings_table}: {dims}")
-        d = dims[0]
+        # Detect and validate dimension
+        d = self._detect_dimension(cur, embeddings_table)
         if self.dim != d:
             self.dim = d  # adopt DB dimension
 
-        # Prepare index
-        index = nmslib.init(method='hnsw', space='cosinesimil', data_type=nmslib.DataType.DENSE_VECTOR)
-
-        # Stream rows in deterministic order (by spec_id)
-        where = f"WHERE {where_sql}" if (where_sql and not where_sql.strip().upper().startswith("WHERE")) else (where_sql or "")
-        sql = f"SELECT spec_id, vec FROM {embeddings_table} {where} ORDER BY spec_id ASC;"
-        cur.execute(sql)
-
-        added = 0
-        ids_accum: List[str] = []
-        X_buf: List[np.ndarray] = []
-
-        def flush_buf():
-            nonlocal added, X_buf, ids_accum
-            if not X_buf:
-                return
-            X = np.vstack(X_buf).astype(np.float32, copy=False)
-            if l2_normalize:
-                n = np.linalg.norm(X, axis=1, keepdims=True)
-                n = np.maximum(n, 1e-12)
-                X = X / n
-            index.addDataPointBatch(X)
-            added += X.shape[0]
-            X_buf.clear()
-
-        B = batch_rows
-        try:
-            while True:
-                rows = cur.fetchmany(B)
-                if not rows:
-                    break
-                for sid, blob in rows:
-                    vec = np.frombuffer(blob, dtype=np.float32, count=d)
-                    if vec.size != d:
-                        raise ValueError("Embedding blob has incorrect length.")
-                    X_buf.append(np.array(vec, copy=True))
-                    ids_accum.append(str(sid))
-                flush_buf()
-        finally:
-            flush_buf()
-
-        if added == 0:
+        # Build WHERE clause & count rows up-front
+        where_clause = self._build_where_clause(where_sql)
+        total = self._count_rows(cur, embeddings_table, where_clause)
+        if total == 0:
             raise ValueError(f"No embeddings loaded from {embeddings_table}.")
 
+        # Pre-allocate one dense (N, d) array and ids array
+        X = np.empty((total, d), dtype=np.float32)
+        ids = np.empty(total, dtype=object)
+
+        # Stream rows and fill pre-allocated buffers in deterministic order
+        sql = f"SELECT spec_id, vec FROM {embeddings_table} {where_clause} ORDER BY spec_id ASC;"
+        cur.execute(sql)
+
+        filled = 0
+        while True:
+            rows = cur.fetchmany(batch_rows)
+            if not rows:
+                break
+            for sid, blob in rows:
+                vec = np.frombuffer(blob, dtype=np.float32, count=d)
+                if vec.size != d:
+                    raise ValueError(
+                        f"Embedding for '{sid}' has {vec.size} dimensions, expected {d}."
+                    )
+                X[filled] = vec  # copies from the buffer
+                ids[filled] = str(sid)
+                filled += 1
+        cur.close()
+
+        if filled != total:
+            # defensive: table changed mid-scan — shrink to what we actually loaded
+            X = X[:filled]
+            ids = ids[:filled]
+            total = filled
+            if total == 0:
+                raise ValueError(f"No embeddings loaded from {embeddings_table}.")
+
+        # Optional L2 normalization (in-place, cache-friendly)
+        if l2_normalize:
+            norms = np.linalg.norm(X, axis=1, keepdims=True)
+            np.maximum(norms, 1e-12, out=norms)
+            X /= norms
+
+        # Build the HNSW index with a SINGLE batch add
+        index = nmslib.init(method='hnsw', space='cosinesimil', data_type=nmslib.DataType.DENSE_VECTOR)
+        index.addDataPointBatch(X)
         index.createIndex({'M': M, 'efConstruction': ef_construction}, print_progress=False)
         index.setQueryTimeParams({'ef': post_init_ef})
 
+        # Commit
         self._index = index
-        self._ids = np.asarray(ids_accum, dtype=object)
+        self._ids = ids
         self._meta = {
             "type": "ANNMS2DeepIndex",
             "built_from_sqlite": True,
@@ -242,7 +268,33 @@ class EmbeddingIndex(_BaseANN):
             "post_init_ef": post_init_ef,
             "l2_normalize": bool(l2_normalize),
         }
-        return added
+        return int(total)
+
+    def _detect_dimension(self, cursor: sqlite3.Cursor, table: str) -> int:
+        """Detect and validate embedding dimension from table."""
+        sql = f"SELECT DISTINCT d FROM {table} ORDER BY d;"
+        dims = [int(row[0]) for row in cursor.execute(sql)]
+        
+        if not dims:
+            raise ValueError(f"No rows found in table '{table}'.")
+        if len(dims) > 1:
+            raise ValueError(
+                f"Mixed dimensions in table '{table}': {dims}. "
+                f"All embeddings must have the same dimension."
+            )
+        
+        return dims[0]
+
+    def _build_where_clause(self, where_sql: Optional[str]) -> str:
+        """Build WHERE clause from user input, handling various formats."""
+        if not where_sql:
+            return ""
+        
+        where_sql = where_sql.strip()
+        if where_sql.upper().startswith("WHERE"):
+            return where_sql
+        else:
+            return f"WHERE {where_sql}"
 
     # ---------- querying ----------
     def query(self, vector: np.ndarray, k: int = 10, ef: Optional[int] = None, assume_normalized: Optional[bool] = None):
