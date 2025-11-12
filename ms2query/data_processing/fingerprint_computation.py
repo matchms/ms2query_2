@@ -1,6 +1,6 @@
-import numpy as np
 import numba
-from numba import types, typed
+import numpy as np
+from numba import typed, types
 from rdkit import Chem
 from tqdm import tqdm
 

@@ -8,7 +8,7 @@ from matchms.similarity import CosineGreedy
 from tqdm import tqdm
 from ms2query import MS2QueryDatabase, MS2QueryLibrary
 from ms2query.data_processing.merging_utils import cluster_block, get_merged_spectra
-from ms2query.database import EmbeddingIndex, FingerprintSparseIndex
+from ms2query.database import EmbeddingIndex
 from ms2query.database.spectra_merging import _split_by_mode_charge
 
 

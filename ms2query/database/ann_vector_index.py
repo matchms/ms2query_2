@@ -297,7 +297,15 @@ class EmbeddingIndex(_BaseANN):
             return f"WHERE {where_sql}"
 
     # ---------- querying ----------
-    def query(self, vector: np.ndarray, k: int = 10, ef: Optional[int] = None, assume_normalized: Optional[bool] = None):
+    def query(
+            self,
+            vector: np.ndarray,
+            k: int = 10,
+            ef: Optional[int] = None,
+            assume_normalized: Optional[bool] = None
+            ) -> List[Tuple[str, float]]:
+        """Query the index with a single vector.
+        """
         if self._index is None:
             raise RuntimeError("Index not built or loaded.")
         v = np.asarray(vector, dtype=np.float32).reshape(1, -1)
@@ -322,6 +330,8 @@ class EmbeddingIndex(_BaseANN):
 
     # ---------- persistence ----------
     def save_index(self, path_prefix: str) -> None:
+        """Save index to files with given prefix.
+        """
         if self._index is None or self._ids is None:
             raise RuntimeError("Index not built or loaded.")
         meta_path = f"{path_prefix}.meta.json"
@@ -335,6 +345,8 @@ class EmbeddingIndex(_BaseANN):
             json.dump(meta, f)
 
     def load_index(self, path_prefix: str) -> None:
+        """Load index from files with given prefix.
+        """
         meta_path = f"{path_prefix}.meta.json"
         ids_path = f"{path_prefix}.ids.npy"
         hnsw_path = str(path_prefix)  #f"{path_prefix}.nmslib"

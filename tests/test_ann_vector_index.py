@@ -66,9 +66,7 @@ def test_save_and_load_roundtrip_dense(tmp_path):
 def test_build_index_from_sqlite_streams_and_orders(batch_rows):
     conn = sqlite3.connect(":memory:")
     conn.execute("CREATE TABLE embeddings(spec_id TEXT, vec BLOB, d INTEGER)")
-    # Two 3D vectors; deliberately unsorted insertion order
-    v1 = np.array([1.0, 0.0, 0.0], np.float32)
-    v2 = np.array([1.0, 1.0, 0.0], np.float32)
+    # Add 3 vectors of dim 3
     conn.executemany( "INSERT INTO embeddings(spec_id, vec, d) VALUES (?,?,?)",
         [
             ("id_1", np.array([1.0, 0.0, 0.0], np.float32).tobytes(), 3),

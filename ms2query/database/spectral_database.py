@@ -318,7 +318,9 @@ class SpectralDatabase:
             cur.execute(f"SELECT spec_id, d, vec FROM {embeddings_table} ORDER BY spec_id ASC;")
         else:
             ph = ",".join("?" for _ in ids)
-            cur.execute(f"SELECT spec_id, d, vec FROM {embeddings_table} WHERE spec_id IN ({ph}) ORDER BY spec_id ASC;", ids)
+            cur.execute(
+                f"SELECT spec_id, d, vec FROM {embeddings_table} WHERE spec_id IN ({ph}) ORDER BY spec_id ASC;",
+                ids)
 
         sids: List[str] = []
         vecs: List[np.ndarray] = []
