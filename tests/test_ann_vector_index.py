@@ -13,26 +13,29 @@ def _mk_unit_vecs(*rows):
     n = np.maximum(n, 1e-12)
     return X / n
 
+
 def test_build_index_and_query_dense():
     X = _mk_unit_vecs([1,0,0], [0,1,0], [0,0,1])
     ids = ["a","b","c"]
     idx = EmbeddingIndex(dim=3)
-    idx.build_index(X, ids, assume_normalized=True)
+    idx.build_index(X, ids)
     # Query close to [1,0,0]
     q = _mk_unit_vecs([0.9, 0.1, 0.0])[0]
     res = idx.query(q, k=2)
     assert [r[0] for r in res] == ["a", "b"]
     assert res[0][1] > res[1][1]  # similarity desc
 
+
 def test_build_index_normalizes_when_requested():
     X = np.array([[2.0,0,0],[0,2.0,0]], dtype=np.float32)
     ids = ["x","y"]
     idx = EmbeddingIndex(dim=3)
-    idx.build_index(X, ids, assume_normalized=False)
+    idx.build_index(X, ids)
     q = np.array([1.0,0,0], dtype=np.float32)
-    out = idx.query(q, k=1, assume_normalized=False)
+    out = idx.query(q, k=1)
     assert out[0][0] == "x"
     assert 0.99 <= out[0][1] <= 1.0
+
 
 def test_query_errors_and_dim_check():
     idx = EmbeddingIndex(dim=3)
@@ -41,6 +44,7 @@ def test_query_errors_and_dim_check():
     idx.build_index(np.eye(3, dtype=np.float32), ["a","b","c"])
     with pytest.raises(ValueError, match="dim=3"):
         idx.query(np.zeros(4, np.float32))
+
 
 def test_save_and_load_roundtrip_dense(tmp_path):
     X = _mk_unit_vecs([1,0,0],[0,1,0],[0,0,1])
@@ -62,6 +66,7 @@ def test_save_and_load_roundtrip_dense(tmp_path):
         meta = json.load(f)
     assert meta["space"] == "cosinesimil"
 
+
 @pytest.mark.parametrize("batch_rows", [1, 2, 3])
 def test_build_index_from_sqlite_streams_and_orders(batch_rows):
     conn = sqlite3.connect(":memory:")
@@ -75,11 +80,12 @@ def test_build_index_from_sqlite_streams_and_orders(batch_rows):
         ],
     )
     idx = EmbeddingIndex(dim=3)
-    n = idx.build_index_from_sqlite(conn, embeddings_table="embeddings", batch_rows=batch_rows, l2_normalize=True)
+    n = idx.build_index_from_sqlite(conn, embeddings_table="embeddings", batch_rows=batch_rows)
     assert n == 3
     # Should be ordered by spec_id ascending ("id_1","id_2")
     out = idx.query(np.array([1.0, 0.0, 0.0], np.float32), k=2)
     assert [o[0] for o in out] == ["id_1", "id_2"]
+
 
 def test_build_index_from_sqlite_errors():
     conn = sqlite3.connect(":memory:")
@@ -124,12 +130,14 @@ def test_tuples_to_csr_basic():
     r2 = csr[2].toarray().ravel()
     np.testing.assert_allclose(r2, [1.0, 0, 0, 0, 1.0])
 
+
 def test_tuples_to_csr_errors_when_index_out_of_bounds():
     tuples = [
         (np.array([0, 6], dtype=np.int32), np.array([1.0, 2.0], dtype=np.float32)),
     ]
     with pytest.raises(ValueError, match=">= dim"):
         tuples_to_csr(tuples, dim=5)
+
 
 def test_csr_row_from_tuple_coalesces_and_validates():
     idxs = np.array([2, 2, 0], dtype=np.int32)
@@ -141,6 +149,7 @@ def test_csr_row_from_tuple_coalesces_and_validates():
 
     with pytest.raises(ValueError, match="Query index"):
         csr_row_from_tuple((np.array([5]), np.array([1.0], np.float32)), dim=5)
+
 
 def test_l1_norms_csr():
     X = sp.csr_matrix(

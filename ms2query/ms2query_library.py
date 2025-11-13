@@ -67,6 +67,8 @@ class MS2QueryLibrary:
     def compute_embeddings(self, spectra: list[Spectrum]) -> np.ndarray:
         """
         Compute MS2DeepScore embeddings for arbitrary query spectra.
+
+        Spectra will be preprocessed via self.process_spectra(...) first.
         """
         if not spectra:
             return np.empty((0, 0), dtype=np.float32)
@@ -88,7 +90,6 @@ class MS2QueryLibrary:
         *,
         k: int = 10,
         ef: Optional[int] = None,
-        assume_normalized: bool = True,
         return_dataframe: bool = True,
     ) -> Union[List[List[Dict[str, Any]]], "pd.DataFrame"]:
         """
@@ -106,8 +107,6 @@ class MS2QueryLibrary:
             Top-k to return.
         ef : Optional[int]
             nmslib ef (higher = better recall / slower).
-        assume_normalized : bool
-            If False, will L2-normalize vectors again before query (normally keep True).
         return_dataframe : bool
             If True, returns a tidy DataFrame with columns:
               ['query_ix','rank','spec_id','score']
@@ -126,7 +125,7 @@ class MS2QueryLibrary:
         for qi in range(embeddings.shape[0]):
             # TODO: make faster by querying batch-wise
             # EmbeddingIndex.query returns list[(spec_id, similarity)]
-            hits = self.embedding_index.query(embeddings[qi], k=k, ef=ef, assume_normalized=assume_normalized)
+            hits = self.embedding_index.query(embeddings[qi], k=k, ef=ef)
             # convert to standard structure
             one = []
             for rk, (spec_id, score) in enumerate(hits, start=1):
@@ -143,6 +142,15 @@ class MS2QueryLibrary:
         df = pd.DataFrame(rows, columns=["query_ix", "rank", "spec_id", "score"])
         return df
 
+    def query_compounds_by_spectra(
+        self,
+        spectra: Union[Spectrum, Sequence[Spectrum]],
+        *,
+        k: int = 10,
+        ef: Optional[int] = None,
+        return_dataframe: bool = True,
+        ):
+        pass
     # ----------------------------- helpers / optional glue -----------------------------
 
     def set_embedding_index(self, index: EmbeddingIndex) -> None:
@@ -170,7 +178,7 @@ class MS2QueryLibrary:
 
         results_all: List[List[Dict[str, Any]]] = []
         for qi in range(X.shape[0]):
-            hits = self.embedding_index.query(X[qi], k=k, ef=ef, assume_normalized=True)
+            hits = self.embedding_index.query(X[qi], k=k, ef=ef)
             one = [{"rank": rk + 1, "spec_id": sid, "score": float(score)} for rk, (sid, score) in enumerate(hits)]
             results_all.append(one)
 

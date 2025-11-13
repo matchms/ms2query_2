@@ -192,7 +192,6 @@ def create_new_library(
             M=params["M"],
             ef_construction=params["ef_construction"],
             post_init_ef=params["post_init_ef"],
-            l2_normalize=True,
         )
         _print_progress(f"Indexed {n_vecs} embedding vectors.")
         emb_prefix = str(out_dir / _EMB_INDEX_BASENAME)

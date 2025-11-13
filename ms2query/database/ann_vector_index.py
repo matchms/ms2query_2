@@ -115,7 +115,6 @@ class EmbeddingIndex(_BaseANN):
         self._index = None
         self._comp_ids: Optional[np.ndarray] = None
 
-    # ---------- direct build from arrays ----------
     def build_index(
         self,
         vectors: np.ndarray,
@@ -124,15 +123,25 @@ class EmbeddingIndex(_BaseANN):
         M: int = 16,
         ef_construction: int = 200,
         post_init_ef: int = 200,
-        assume_normalized: bool = True,
     ) -> None:
+        """Build index from dense vectors and spec_ids.
+        
+        Parameters
+        ----------
+        vectors : np.ndarray
+            2D array of shape (N, dim) with float32 vectors.
+        spec_ids : Iterable[str]
+            Iterable of spec_id strings of length N.
+        M : int
+            HNSW M parameter (connectivity)
+        ef_construction : int
+            HNSW efConstruction parameter
+        post_init_ef : int
+            HNSW query-time ef parameter
+        """
         X = np.asarray(vectors, dtype=np.float32)
         if X.ndim != 2 or X.shape[1] != self.dim:
             raise ValueError(f"Expected vectors shape (N, {self.dim}), got {X.shape}")
-        if not assume_normalized:
-            n = np.linalg.norm(X, axis=1, keepdims=True)
-            n = np.maximum(n, 1e-12)
-            X = X / n
         ids = np.asarray(list(spec_ids), dtype=object)
         if ids.shape[0] != X.shape[0]:
             raise ValueError("spec_ids length must match number of vectors.")
@@ -146,7 +155,6 @@ class EmbeddingIndex(_BaseANN):
         self._ids = ids
         self._meta = {
             "type": "ANNMS2DeepIndex",
-            "assume_normalized": bool(assume_normalized),
             "M": M,
             "ef_construction": ef_construction,
             "post_init_ef": post_init_ef,
@@ -168,7 +176,6 @@ class EmbeddingIndex(_BaseANN):
         M: int = 16,
         ef_construction: int = 200,
         post_init_ef: int = 200,
-        l2_normalize: bool = True,
     ) -> int:
         """
         Streams embeddings from SQLite and constructs an HNSW index in-place.
@@ -191,8 +198,6 @@ class EmbeddingIndex(_BaseANN):
             HNSW efConstruction parameter
         post_init_ef : int
             HNSW query-time ef parameter
-        l2_normalize : bool
-            Whether to L2-normalize vectors before indexing
 
         Returns
         -------
@@ -244,12 +249,6 @@ class EmbeddingIndex(_BaseANN):
             if total == 0:
                 raise ValueError(f"No embeddings loaded from {embeddings_table}.")
 
-        # Optional L2 normalization (in-place, cache-friendly)
-        if l2_normalize:
-            norms = np.linalg.norm(X, axis=1, keepdims=True)
-            np.maximum(norms, 1e-12, out=norms)
-            X /= norms
-
         # Build the HNSW index with a SINGLE batch add
         index = nmslib.init(method='hnsw', space='cosinesimil', data_type=nmslib.DataType.DENSE_VECTOR)
         index.addDataPointBatch(X)
@@ -266,7 +265,6 @@ class EmbeddingIndex(_BaseANN):
             "M": M,
             "ef_construction": ef_construction,
             "post_init_ef": post_init_ef,
-            "l2_normalize": bool(l2_normalize),
         }
         return int(total)
 
@@ -302,21 +300,23 @@ class EmbeddingIndex(_BaseANN):
             vector: np.ndarray,
             k: int = 10,
             ef: Optional[int] = None,
-            assume_normalized: Optional[bool] = None
             ) -> List[Tuple[str, float]]:
         """Query the index with a single vector.
+    
+        Parameters
+        ----------
+        vector : np.ndarray
+            1D array of shape (dim,) with float32 vector.
+        k : int
+            Number of nearest neighbors to return.
+        ef : Optional[int]
+            nmslib ef parameter (higher = better recall / slower).
         """
         if self._index is None:
             raise RuntimeError("Index not built or loaded.")
         v = np.asarray(vector, dtype=np.float32).reshape(1, -1)
         if v.shape[1] != self.dim:
             raise ValueError(f"Query vector must have dim={self.dim}")
-
-        norm_flag = self._meta.get("assume_normalized", True) if assume_normalized is None else assume_normalized
-        if not norm_flag:
-            n = np.linalg.norm(v, axis=1, keepdims=True)
-            n = np.maximum(n, 1e-12)
-            v = v / n
 
         if ef is not None:
             self._index.setQueryTimeParams({'ef': int(ef)})
