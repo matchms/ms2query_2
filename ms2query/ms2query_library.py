@@ -36,7 +36,7 @@ class MS2QueryLibrary:
     model_path: Optional[str] = None
 
     # internal: whether to apply spectrum normalization (sum=1) before embedding
-    _spectrum_sum_normalization_for_embedding: bool = field(default=True, init=False, repr=False)
+    _spectrum_sum_normalization_for_embedding: bool = True
     # cached MS2DeepScore model
     _model: Any = field(default=None, init=False, repr=False)
 
