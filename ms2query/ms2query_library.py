@@ -53,6 +53,10 @@ class MS2QueryLibrary:
             self._model = _ms2ds_load_model(self.model_path)
             self._model.eval()
         return self._model
+    
+    def _ensure_index(self):
+        if self.embedding_index is None:
+            raise RuntimeError("EmbeddingIndex is not set. Build or load it before querying.")
 
     # ----------------------------- core API -----------------------------
 
@@ -111,12 +115,8 @@ class MS2QueryLibrary:
             If True, returns a tidy DataFrame with columns:
               ['query_ix','rank','spec_id','score']
         """
-        if self.embedding_index is None:
-            raise RuntimeError("EmbeddingIndex is not set. Build or load it before querying.")
-
-        # Single → list
-        if isinstance(spectra, Spectrum):
-            spectra = [spectra]
+        self._ensure_index()
+        spectra = _ensure_spectra_list(spectra)
 
         # Compute embeddings (L2-normalized)
         embeddings = self.compute_embeddings(spectra)
@@ -144,13 +144,57 @@ class MS2QueryLibrary:
 
     def query_compounds_by_spectra(
         self,
-        spectra: Union[Spectrum, Sequence[Spectrum]],
+        spectra: list[Spectrum],
         *,
-        k: int = 10,
+        k_spectra: int = 100,
+        k_compounds: int = 10,
         ef: Optional[int] = None,
-        return_dataframe: bool = True,
         ):
-        pass
+        """
+        Query the embedding index with spectra, return top-k_compounds per spectrum.
+
+        Parameters
+        ----------
+        spectra : list[Spectrum]
+            Query spectra.
+        k_spectra : int
+            Number of top spectra to retrieve from the embedding index.
+        k_compounds : int
+            Number of top compounds to return per query spectrum.
+        ef : Optional[int]
+            nmslib ef parameter (higher = better recall / slower).
+        """
+        self._ensure_index()
+        spectra = _ensure_spectra_list(spectra)
+
+        if k_compounds > k_spectra:
+            raise ValueError("k_compounds cannot be larger than k_spectra")
+
+        # Step1: Query spectral embeddings
+        results = self.query_embedding_index(spectra, k=k_spectra, ef=ef)
+
+        # Pick k_compounds top compounds from the k_spectra hits (if possible)
+        spec_ids = results.spec_id.values
+
+        compounds = self.db.metadata_by_spec_ids([x for x in spec_ids]).set_index("spec_id")
+        compounds = compounds.merge(results, on="spec_id").sort_values(["query_ix", "rank"])
+
+        # Pick no more than k_compounds per query_ix
+        idx = compounds.groupby(['query_ix', 'comp_id'])['score'].idxmax()
+        best_per_pair = compounds.loc[idx]
+
+        # Within each query_ix, keep the top-k by score
+        df_selected = (
+            best_per_pair
+            .sort_values(['query_ix', 'score'], ascending=[True, False])
+            .groupby('query_ix', group_keys=False)
+            .head(k_compounds)
+            .reset_index(drop=True)
+        )
+        
+        return df_selected
+
+        
     # ----------------------------- helpers / optional glue -----------------------------
 
     def set_embedding_index(self, index: EmbeddingIndex) -> None:
@@ -185,7 +229,6 @@ class MS2QueryLibrary:
         if not return_dataframe:
             return results_all
 
-        import pandas as pd
         rows = []
         for qi, lst in enumerate(results_all):
             for item in lst:
@@ -194,5 +237,14 @@ class MS2QueryLibrary:
 
     @staticmethod
     def _empty_result_df():
-        import pandas as pd
         return pd.DataFrame(columns=["query_ix", "rank", "spec_id", "score"])
+
+
+# ----------------- helper functions ---------------------
+
+def _ensure_spectra_list(spectra: Union[Spectrum, Sequence[Spectrum]]) -> List[Spectrum]:
+    if isinstance(spectra, Spectrum):
+        return [spectra]
+    if isinstance(spectra, Sequence):
+        return list(spectra)
+    raise ValueError("spectra must be a Spectrum or a sequence of Spectrum objects.")
