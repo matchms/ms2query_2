@@ -3,10 +3,9 @@ from typing import Any, Dict, List, Optional, Sequence, Union
 import numpy as np
 import pandas as pd
 from matchms import Spectrum
-from ms2deepscore.models import compute_embedding_array
 from ms2deepscore.models import load_model as _ms2ds_load_model
 from ms2query import MS2QueryDatabase
-from ms2query.data_processing import normalize_spectrum_sum
+from ms2query.data_processing import compute_spectra_embeddings
 from ms2query.database import EmbeddingIndex, FingerprintSparseIndex
 
 
@@ -36,7 +35,9 @@ class MS2QueryLibrary:
     fingerprint_index: Optional[FingerprintSparseIndex] = None
     model_path: Optional[str] = None
 
-    # internal: cached MS2DeepScore model
+    # internal: whether to apply spectrum normalization (sum=1) before embedding
+    _spectrum_sum_normalization_for_embedding: bool = field(default=True, init=False, repr=False)
+    # cached MS2DeepScore model
     _model: Any = field(default=None, init=False, repr=False)
 
     # ----------------------------- lifecycle -----------------------------
@@ -48,7 +49,6 @@ class MS2QueryLibrary:
                 raise RuntimeError(
                     "MS2QueryLibrary: model_path is not set; cannot compute embeddings on-the-fly."
                 )
-            # You can load via SpectralDatabase helper or directly; both end up identical.
             # Using direct loader to avoid circular coupling here.
             self._model = _ms2ds_load_model(self.model_path)
             self._model.eval()
@@ -64,30 +64,23 @@ class MS2QueryLibrary:
         # Hook point: insert matchms pipeline later (e.g., metadata fixes, peak processing, etc.)
         return list(spectra)
 
-    def compute_embeddings(self, spectra: list[Spectrum], *, normalize_inputs: bool = True) -> np.ndarray:
+    def compute_embeddings(self, spectra: list[Spectrum]) -> np.ndarray:
         """
         Compute MS2DeepScore embeddings for arbitrary query spectra.
-
-        - Applies ms2query's normalize_spectrum_sum() if normalize_inputs=True
-        - Returns L2-normalized embeddings (float32) suitable for cosine ANN
         """
         if not spectra:
             return np.empty((0, 0), dtype=np.float32)
 
         model = self._ensure_model()
 
-        # preprocess — keep spectral normalization symmetrical with DB embeddings
-        proc = self.process_spectra(spectra)
-        if normalize_inputs:
-            proc = [normalize_spectrum_sum(s) for s in proc]
+        # Preprocess — keep spectral normalization symmetrical with DB embeddings
+        spectra = self.process_spectra(spectra)
 
-        E = compute_embedding_array(model, proc).astype(np.float32, copy=False)
-
-        # L2 normalize (EmbeddingIndex assumes/benefits from cosine-normalized vectors)
-        n = np.linalg.norm(E, axis=1, keepdims=True)
-        n = np.maximum(n, 1e-12)
-        E = E / n
-        return E
+        # Compute embeddings
+        return compute_spectra_embeddings(
+            model, spectra,
+            normalize_spectrum=self._spectrum_sum_normalization_for_embedding
+            )
 
     def query_embedding_index(
         self,
@@ -127,12 +120,13 @@ class MS2QueryLibrary:
             spectra = [spectra]
 
         # Compute embeddings (L2-normalized)
-        E = self.compute_embeddings(spectra)
+        embeddings = self.compute_embeddings(spectra)
 
         results_all: List[List[Dict[str, Any]]] = []
-        for qi in range(E.shape[0]):
+        for qi in range(embeddings.shape[0]):
+            # TODO: make faster by querying batch-wise
             # EmbeddingIndex.query returns list[(spec_id, similarity)]
-            hits = self.embedding_index.query(E[qi], k=k, ef=ef, assume_normalized=assume_normalized)
+            hits = self.embedding_index.query(embeddings[qi], k=k, ef=ef, assume_normalized=assume_normalized)
             # convert to standard structure
             one = []
             for rk, (spec_id, score) in enumerate(hits, start=1):

@@ -23,6 +23,7 @@ _EMB_INDEX_BASENAME = "embedding_index"     # will create embedding_index.{nmsli
 def _handle_default_settings(settings: dict) -> dict:
     """Ensure all necessary settings have default values if not provided."""
     defaults = {
+        "spectrum_sum_normalization_for_embedding": True,
         "mz_tol": 0.01,
         "min_frac": 0.25,
         "cosine_thr": 0.95,
@@ -81,7 +82,7 @@ def create_new_library(
     additional_compound_file: Optional[str] = None,
     build_embedding_index: bool = True,
     embedding_index_params: Optional[dict] = None,
-    compute_embeddings_batch_rows: int = 2048,
+    compute_embeddings_batch_rows: int = 4096,
     **settings,
 ) -> MS2QueryLibrary:
     """
@@ -161,11 +162,14 @@ def create_new_library(
         embeddings_table=_EMB_TABLE,
         batch_rows=compute_embeddings_batch_rows,
         only_missing=True,
-        normalize_query_spectra=True,
     )
     _print_progress(f"Wrote {n_new} new embeddings (table '{_EMB_TABLE}').")
 
-    lib = MS2QueryLibrary(db=ms2query_db, model_path=model_path)
+    # Create central library object (and pass db, model and parameters!)
+    lib = MS2QueryLibrary(
+        db=ms2query_db, model_path=model_path,
+        _spectrum_sum_normalization_for_embedding=settings["spectrum_sum_normalization_for_embedding"]
+        )
 
     if build_embedding_index:
         _print_progress("Building EmbeddingIndex (nmslib/HNSW cosine) ...")
@@ -179,7 +183,7 @@ def create_new_library(
             params.update(embedding_index_params)
 
         emb_index = EmbeddingIndex()  # dim will be inferred from DB
-        # Stream embeddings from SQLite → HNSW
+        # Stream embeddings from SQLite --> HNSW
         n_vecs = emb_index.build_index_from_sqlite(
             ms2query_db.ref_sdb.connection,
             embeddings_table=_EMB_TABLE,

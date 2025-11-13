@@ -5,9 +5,8 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from matchms import Spectrum
-from ms2deepscore.models import compute_embedding_array
 from ms2deepscore.models import load_model as _ms2ds_load_model
-from ms2query.data_processing import normalize_spectrum_sum
+from ms2query.data_processing import compute_spectra_embeddings
 
 
 # ------------ helpers ------------
@@ -62,6 +61,7 @@ class SpectralDatabase:
         "precursor_mz", "ionmode", "smiles", "inchikey", "inchi", "name",
         "instrument_type", "adduct", "collision_energy"
     ])
+    spectrum_sum_normalization_for_embedding: bool = True
     _conn: sqlite3.Connection = field(init=False, repr=False)
     _ms2ds_model_path: Optional[str] = field(default=None, repr=False)
     _ms2ds_model: Any = field(default=None, repr=False)
@@ -217,14 +217,12 @@ class SpectralDatabase:
         embeddings_table: str = "embeddings",
         batch_rows: int = 1024,
         only_missing: bool = True,
-        normalize_query_spectra: bool = True,
         commit_every: int = 0,
     ) -> int:
         """
         Compute MS2DeepScore embeddings for rows in `spectra_table` and write to `embeddings_table`.
 
         - Uses `matchms.Spectrum` objects reconstructed from the stored peaks & metadata.
-        - If `normalize_query_spectra`, applies ms2query's normalize_spectrum_sum().
         - Stores raw float32 vectors (no extra header) with their dimension `d`.
         """
         # TODO: add batch_size to speed up?
@@ -267,22 +265,24 @@ class SpectralDatabase:
             for sid, mz_blob, it_blob, n_peaks, prec_mz, ionmode, charge in batch:
                 mz = _from_float32_bytes(mz_blob, int(n_peaks))
                 it = _from_float32_bytes(it_blob, int(n_peaks))
-                sp = Spectrum(mz=mz, intensities=it, metadata={
+                spectrum = Spectrum(mz=mz, intensities=it, metadata={
                     "precursor_mz": float(prec_mz) if prec_mz is not None else None,
                     "ionmode": ionmode,
                     "charge": charge,
                     "spec_id": sid,
                 })
-                sp = normalize_spectrum_sum(sp) if normalize_query_spectra else sp
-                specs.append(sp)
+                specs.append(spectrum)
                 sids.append(sid)
 
-            emb = compute_embedding_array(model, specs).astype(np.float32, copy=False)
-            d = int(emb.shape[1])
+            embeddings = compute_spectra_embeddings(
+                model, specs,
+                normalize_spectrum=self.spectrum_sum_normalization_for_embedding
+                )
+            dim = int(embeddings.shape[1])
             q = f"INSERT OR REPLACE INTO {embeddings_table} (spec_id, d, vec) VALUES (?, ?, ?);"
             with self._conn:
-                for sid, vec in zip(sids, emb):
-                    self._conn.execute(q, (sid, d, sqlite3.Binary(_as_float32_bytes(vec))))
+                for sid, embedding in zip(sids, embeddings):
+                    self._conn.execute(q, (sid, dim, sqlite3.Binary(_as_float32_bytes(embedding))))
             return len(batch)
 
         while True:
