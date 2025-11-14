@@ -584,16 +584,12 @@ class CompoundDatabase:
         sparse  = self.fingerprint_sparse
         count   = self.fingerprint_count
 
-        def iter_missing(sql: str):
-            offset = 0
-            with self._conn as _:
-                cur = self._conn.cursor()
-                while True:
-                    rows = cur.execute(sql, (batch_size, offset)).fetchall()
-                    if not rows:
-                        break
-                    yield rows
-                    offset += batch_size
+        def _iter_missing(cur, sql, batch_size):
+            while True:
+                rows = cur.execute(sql, (batch_size,)).fetchall()  # no OFFSET
+                if not rows:
+                    break
+                yield rows
 
         base_where = """
             COALESCE(LENGTH(fingerprint_bits),0)=0
@@ -603,12 +599,15 @@ class CompoundDatabase:
         sql_smiles = f"""
             SELECT comp_id, smiles FROM {self.table}
             WHERE smiles IS NOT NULL AND TRIM(smiles) <> '' AND {base_where}
-            LIMIT ? OFFSET ?
+            ORDER BY comp_id
+            LIMIT ?
         """
         sql_inchi = f"""
             SELECT comp_id, inchi FROM {self.table}
-            WHERE (smiles IS NULL OR TRIM(smiles)='') AND inchi IS NOT NULL AND TRIM(inchi) <> '' AND {base_where}
-            LIMIT ? OFFSET ?
+            WHERE (smiles IS NULL OR TRIM(smiles)='')
+            AND inchi IS NOT NULL AND TRIM(inchi) <> '' AND {base_where}
+            ORDER BY comp_id
+            LIMIT ?
         """
 
         stats = {"updated": 0, "attempted": 0, "skipped": 0}
@@ -652,34 +651,36 @@ class CompoundDatabase:
                 )
 
         for sql, which in ((sql_smiles, "smiles"), (sql_inchi, "inchi")):
-            for rows in iter_missing(sql):
-                comp_ids = [r[0] for r in rows]
-                reps = [r[1] for r in rows]
-                res = compute_morgan_fingerprints(
-                    smiles=reps if which == "smiles" else None,
-                    inchis=reps if which == "inchi" else None,
-                    sparse=sparse, count=count, radius=radius,
-                    n_bits=fp_size,
-                    progress_bar=use_progress_bar,
-                )
+            with self._conn as _:
+                cur = self._conn.cursor()
+                for rows in _iter_missing(cur, sql, batch_size):
+                    comp_ids = [r[0] for r in rows]
+                    reps = [r[1] for r in rows]
+                    res = compute_morgan_fingerprints(
+                        smiles=reps if which == "smiles" else None,
+                        inchis=reps if which == "inchi" else None,
+                        sparse=sparse, count=count, radius=radius,
+                        n_bits=fp_size,
+                        progress_bar=use_progress_bar,
+                    )
 
-                if isinstance(res, np.ndarray):                # dense
-                    _apply_dense(comp_ids, res)
-                    upd = res.shape[0]
-                else:
-                    if sparse and not count:                   # sparse/binary
-                        _apply_sparse_bits(comp_ids, res)       # type: ignore[arg-type]
-                        upd = len(res)
-                    elif sparse and count:                     # sparse/count
-                        _apply_sparse_counts(comp_ids, res)     # type: ignore[arg-type]
-                        upd = len(res)
-                    else:                                      # defensive: list of dense rows
-                        mat = np.vstack([np.asarray(x, dtype=np.float32) for x in res])
-                        _apply_dense(comp_ids, mat)
-                        upd = mat.shape[0]
+                    if isinstance(res, np.ndarray):                # dense
+                        _apply_dense(comp_ids, res)
+                        upd = res.shape[0]
+                    else:
+                        if sparse and not count:                   # sparse/binary
+                            _apply_sparse_bits(comp_ids, res)       # type: ignore[arg-type]
+                            upd = len(res)
+                        elif sparse and count:                     # sparse/count
+                            _apply_sparse_counts(comp_ids, res)     # type: ignore[arg-type]
+                            upd = len(res)
+                        else:                                      # defensive: list of dense rows
+                            mat = np.vstack([np.asarray(x, dtype=np.float32) for x in res])
+                            _apply_dense(comp_ids, mat)
+                            upd = mat.shape[0]
 
-                stats["updated"] += upd
-                stats["attempted"] += len(comp_ids)
+                    stats["updated"] += upd
+                    stats["attempted"] += len(comp_ids)
 
         stats["skipped"] = self.sql_query(f"""
             SELECT COUNT(*) AS n
