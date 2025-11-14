@@ -1,7 +1,7 @@
-# tests/test_compounds_and_mapping.py
 import sqlite3
 from pathlib import Path
 import numpy as np
+import pytest
 from ms2query.data_processing import compute_morgan_fingerprints
 from ms2query.database.compound_database import (
     CompoundDatabase,
@@ -19,9 +19,9 @@ def make_tmp_db(tmp_path: Path, name: str = "test.sqlite") -> str:
     return str(p)
 
 # Example InChIKeys
-IK_FULL_1 = "BSYNRYMUTXBXSQ-UHFFFAOYSA-N"  # glucose
+IK_FULL_1 = "BSYNRYMUTXBXSQ-UHFFFAOYSA-N"
 IK_FULL_2 = "BSYNRYMUTXBXSQ-UHFFFAOYSA-O"  # same first14, different suffix
-IK_FULL_3 = "BQJCRHHNABKAKU-KBQPJGBKSA-N"  # ethanol
+IK_FULL_3 = "BQJCRHHNABKAKU-KBQPJGBKSA-N"
 IK14_1 = "BSYNRYMUTXBXSQ"
 IK14_3 = "BQJCRHHNABKAKU"
 
@@ -136,3 +136,55 @@ def test_compound_upsert_many_and_batch_getters(tmp_path):
     assert fps[0] is not None and fps[1] is not None and fps[2] is None
 
     cdb.close()
+
+@pytest.mark.parametrize("count,sparse", [(True, True), (False, True), (True, False), (False, False)])
+def test_compute_fingerprints_method(count, sparse):
+    # Test the CompoundDatabase.compute_fingerprints_missing method directly
+    db_path = ":memory:"
+    cdb = CompoundDatabase(
+        db_path,
+        fingerprint_radius=3,
+        fingerprint_nbits=1024,
+        fingerprint_count=count,
+        fingerprint_sparse=sparse,
+        )
+
+    smiles_lst = ["CCO", "c1ccccc1"]
+    # Upsert compounds without fingerprints
+    comp_ids = cdb.upsert_many([
+        {"smiles": smiles_lst[0], "inchi": None, "inchikey": IK_FULL_1, "classyfire_class": "A"},
+        {"smiles": smiles_lst[1], "inchi": None, "inchikey": IK_FULL_3, "classyfire_class": "B"},
+    ])
+    assert set(comp_ids) == {IK14_1, IK14_3}
+
+    # Initially no fingerprints
+    fps_initial = cdb.get_fingerprints(comp_ids)
+    assert all(fp is None for fp in fps_initial)
+
+    # Compute fingerprints for missing
+    stats = cdb.compute_fingerprints_missing(batch_size=2, use_progress_bar=False)
+    assert stats["attempted"] == 2
+    assert stats["updated"] == 2
+
+    # Now fingerprints should be present
+    fps_after = cdb.get_fingerprints(comp_ids)
+    assert all(fp is not None for fp in fps_after if fp is not None)
+
+    assert cdb.get_fingerprint_settings()["count"] == count
+    assert cdb.get_fingerprint_settings()["nbits"] == 1024
+    assert cdb.get_fingerprint_settings()["radius"] == 3
+    # compute fingerprints directly with class method
+    fps_directly = cdb.compute_fingerprints(smiles=smiles_lst)
+    assert len(fps_directly) == 2  # one None skipped!
+
+
+    if sparse and count:
+        assert fps_directly[0][0].shape == fps_after[0][0].shape
+        assert np.allclose(fps_directly[0][0][0], fps_after[0][0][0])  # bits
+        assert np.allclose(fps_directly[0][0][1], fps_after[0][0][1])  # counts
+    elif sparse:
+        assert np.allclose(fps_directly[0][0], fps_after[0][0])  # bits
+    else:
+        assert np.allclose(fps_directly[0], fps_after[0])
+    cdb.close()
+    
