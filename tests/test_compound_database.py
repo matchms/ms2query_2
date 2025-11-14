@@ -1,8 +1,9 @@
 import sqlite3
 from pathlib import Path
 import numpy as np
+import pandas as pd
 import pytest
-from ms2query.data_processing import compute_morgan_fingerprints
+from ms2query.data_processing import compute_morgan_fingerprints, inchikey14_from_full
 from ms2query.database.compound_database import (
     CompoundDatabase,
 )
@@ -64,7 +65,6 @@ def test_compute_fingerprints_contract():
             bits, counts = fp
             assert isinstance(bits, np.ndarray) and bits.dtype == np.uint32
             assert isinstance(counts, np.ndarray)
-            # counts are usually integer-like (could be float if you later scale)
             assert counts.ndim == 1
 
 # -------------------------
@@ -187,4 +187,114 @@ def test_compute_fingerprints_method(count, sparse):
     else:
         assert np.allclose(fps_directly[0], fps_after[0])
     cdb.close()
-    
+
+
+def test_overwrite_metadata_from_dataframe_basic_and_mapping(tmp_path):
+    db_path = tmp_path / "compounds.sqlite"
+    cdb = CompoundDatabase(str(db_path))
+
+    # Wide DF with aliases + extras; includes:
+    # - valid 14-char keys via 'nchikey'
+    # - one invalid key (too short) -> skipped
+    # - one duplicate comp_id -> keep last
+    df = pd.DataFrame({
+        "nchikey": ["AAAQFGUYHFJNHI", "AABFWJDLCCDJJN", "SHORTKEY", "AABFWJDLCCDJJN"],
+        "smiles":  ["S1", "S2", "S_bad", "S2_override"],
+        "cf_class": ["C1", "C2", "C_bad", "C2_override"],
+        "cf_superclass": ["SC1", "SC2", "SC_bad", "SC2_override"],
+        "mass": [423.146, 324.126, 0.0, 999.0],  # extra column to be ignored
+    })
+
+    stats = cdb.overwrite_metadata_from_dataframe(
+        df,
+        column_mapper={  # map aliases -> expected names
+            "comp_id": "nchikey",
+            "smiles": "smiles",
+            "classyfire_class": "cf_class",
+            "classyfire_superclass": "cf_superclass",
+        }
+    )
+
+    # Rows: 4 incoming, 1 invalid (SHORTKEY) -> skipped=1
+    # Valid comp_ids: AAAQFGUYHFJNHI, AABFWJDLCCDJJN (duplicate -> keep last) => written=2
+    assert stats["rows"] == 4
+    assert stats["skipped"] == 1
+    assert stats["valid"] == 2
+    assert stats["written"] == 2
+
+    # Check DB content
+    df_db = pd.read_sql_query("SELECT comp_id, smiles, classyfire_class, classyfire_superclass, inchikey, inchi FROM compounds", cdb._conn)
+    assert set(df_db["comp_id"]) == {"AAAQFGUYHFJNHI", "AABFWJDLCCDJJN"}
+
+    # Row without full inchikey provided -> stored as NULL. Inchi not provided -> NULL
+    assert df_db.loc[df_db["comp_id"] == "AAAQFGUYHFJNHI", "inchikey"].iloc[0] in (None, np.nan, "")
+    assert df_db.loc[df_db["comp_id"] == "AAAQFGUYHFJNHI", "inchi"].iloc[0] in (None, np.nan, "")
+
+    # “keep last” behavior for duplicate comp_id
+    r = df_db.set_index("comp_id").loc["AABFWJDLCCDJJN"]
+    assert r["smiles"] == "S2_override"
+    assert r["classyfire_class"] == "C2_override"
+    assert r["classyfire_superclass"] == "SC2_override"
+
+    # Settings table is intact and readable
+    settings = cdb.get_fingerprint_settings()
+    assert {"nbits", "radius", "sparse", "count", "dtype"} <= set(settings.keys())
+
+    cdb.close()
+
+
+def test_overwrite_metadata_from_dataframe_derive_comp_id_and_true_replace(tmp_path):
+    db_path = tmp_path / "compounds.sqlite"
+    cdb = CompoundDatabase(str(db_path))
+
+    # First load: only full InChIKeys (custom column name), comp_id must be derived
+    df1 = pd.DataFrame({
+        "IK_FULL": [
+            "BQJCRHHNABKAKU-KBQPJGBKSA-N",
+            "BSYNRYMUTXBXSQ-UHFFFAOYSA-N",
+        ],
+        "smiles": ["CCO", "O=C=O"],
+        "inchi": ["InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3", "InChI=1S/CO2/c2-1-3"],
+        "cf_class": ["Alcohols", "Carbon oxides"],
+        "cf_superclass": ["Organooxygen compounds", "Inorganic compounds"],
+    })
+
+    stats1 = cdb.overwrite_metadata_from_dataframe(
+        df1,
+        column_mapper={
+            "inchikey": "IK_FULL",                # derive comp_id from full IK
+            "smiles": "smiles",
+            "inchi": "inchi",
+            "classyfire_class": "cf_class",
+            "classyfire_superclass": "cf_superclass",
+        }
+    )
+    assert stats1["written"] == 2
+    df_db1 = pd.read_sql_query("SELECT comp_id, inchikey, smiles FROM compounds ORDER BY comp_id", cdb._conn)
+    # comp_id equals inchikey14_from_full(inchikey)
+    for _, row in df_db1.iterrows():
+        assert row["comp_id"] == inchikey14_from_full(row["inchikey"])
+
+    # Second load: replace with a different set -> previous rows must disappear
+    df2 = pd.DataFrame({
+        "IK_FULL": ["AAOVKJBEBIDNHE-UHFFFAOYSA-N"],
+        "smiles": ["CC(=O)O"],
+        "cf_class": ["Carboxylic acids"],
+        "cf_superclass": ["Organooxygen compounds"],
+    })
+    stats2 = cdb.overwrite_metadata_from_dataframe(
+        df2,
+        column_mapper={
+            "inchikey": "IK_FULL",
+            "smiles": "smiles",
+            "classyfire_class": "cf_class",
+            "classyfire_superclass": "cf_superclass",
+        }
+    )
+    assert stats2["written"] == 1
+    df_db2 = pd.read_sql_query("SELECT comp_id, inchikey, smiles FROM compounds", cdb._conn)
+    assert len(df_db2) == 1
+    assert df_db2.iloc[0]["comp_id"] == inchikey14_from_full(df_db2.iloc[0]["inchikey"])
+    assert set(df_db2["smiles"]) == {"CC(=O)O"}  # previous rows gone (true replace)
+
+    cdb.close()

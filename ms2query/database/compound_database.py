@@ -321,68 +321,137 @@ class CompoundDatabase:
                 cur.executemany(UPSERT_SQL.format(table=self.table), payloads)
         return comp_ids
 
-    def upsert_metadata_from_dataframe(
+    
+    def overwrite_metadata_from_dataframe(
         self,
         df: pd.DataFrame,
         *,
-        colmap: Optional[Dict[str, str]] = None,
+        column_mapper: Optional[Dict[str, str]] = None,
+        chunksize: int = 50_000,
         staging_table: str = "_staging_compounds",
     ) -> dict:
-        """Load/update metadata (no fingerprints) via a staging table."""
-        if df is None or df.empty:
-            return {"rows": 0, "valid": 0, "inserted_or_updated": 0, "skipped_no_or_bad_inchikey": 0}
+        """
+        Fast initialize/replace of the compounds table from a wide DataFrame.
+    
+        Parameters
+        ----------
+        df : pd.DataFrame
+            DataFrame containing compound metadata.
+        column_mapper : Optional[Dict[str, str]], optional
+            Mapping of DataFrame columns to expected compound fields, by default None.
+        chunksize : int, optional
+            Number of rows per chunk when writing to the database, by default 50_000.
 
-        # Column mapping
+        Pass `column_mapper` to map your DataFrame columns to the expected names.
+        Supported mapping keys (values are your df column names):
+            - 'comp_id'                (14-char key; if present, used as-is)
+            - 'inchikey'               (full key; used to derive comp_id if no comp_id provided)
+            - 'smiles'
+            - 'inchi'
+            - 'classyfire_class'
+            - 'classyfire_superclass'
+    
+        If you don't pass a mapper, this will auto-detect common aliases for the 14-char key:
+            'nchikey', 'inchikey14', 'inchikey_14', 'ik14', 'comp_id'
+        """
+        if df is None or df.empty:
+            return {"rows": 0, "valid": 0, "written": 0, "skipped": 0}
+    
+        # ----- resolve columns (mapper-aware with sensible defaults) -----
         default_map = {
+            "comp_id": None,  # optional (14-char key)
             "inchikey": "inchikey",
             "smiles": "smiles",
             "inchi": "inchi",
             "classyfire_class": "classyfire_class",
             "classyfire_superclass": "classyfire_superclass",
         }
-        cmap = {k: (colmap.get(k) if colmap and k in colmap else v) for k, v in default_map.items()}
-        if cmap["inchikey"] not in df.columns:
-            raise ValueError("DataFrame must contain an 'inchikey' column (or provide colmap).")
-
-        # Build compact frame
-        work = pd.DataFrame({"inchikey": df[cmap["inchikey"]].astype(str)})
-        work["comp_id"] = work["inchikey"].map(inchikey14_from_full)
-
-        valid_mask = work["comp_id"].notna() & work["comp_id"].astype(str).str.len().eq(14)
-        skipped = int((~valid_mask).sum())
-        work = work.loc[valid_mask, ["comp_id", "inchikey"]].copy()
-
+        cmap = {k: (column_mapper.get(k) if column_mapper and k in column_mapper else v)
+                for k, v in default_map.items()}
+    
+        # Auto-detect a 14-char key if no mapping was provided for comp_id
+        def _first_present(cols: list[str]) -> Optional[str]:
+            for c in cols:
+                if c in df.columns:
+                    return c
+            return None
+    
+        if cmap["comp_id"] is None:
+            cmap["comp_id"] = _first_present(["nchikey", "inchikey14", "inchikey_14", "ik14", "comp_id"])
+    
+        # We need either a 14-char key or a full inchikey (possibly via mapping)
+        has_comp14 = cmap["comp_id"] is not None and cmap["comp_id"] in df.columns
+        has_fullik = cmap["inchikey"] is not None and cmap["inchikey"] in df.columns
+        if not has_comp14 and not has_fullik:
+            raise ValueError(
+                "DataFrame must contain either a 14-char key "
+                "(map it via column_mapper['comp_id']) or a full 'inchikey' "
+                "(map it via column_mapper['inchikey'])."
+            )
+    
+        # ----- build minimal working frame -----
+        work = pd.DataFrame()
+    
+        # comp_id (14-char)
+        if has_comp14:
+            work["comp_id"] = df[cmap["comp_id"]].astype(str).str.strip()
+        else:
+            # derive from full inchikey
+            full = df[cmap["inchikey"]].astype(str).str.strip()
+            work["comp_id"] = full.map(inchikey14_from_full)
+    
+        # inchikey (full) if present
+        work["inchikey"] = df[cmap["inchikey"]].astype(str).str.strip() if has_fullik else None
+    
+        # optional metadata (mapper-aware)
         for k in ("smiles", "inchi", "classyfire_class", "classyfire_superclass"):
             src = cmap[k]
-            work[k] = df[src] if src in df.columns else None
-
-        work = work.drop_duplicates(subset=["comp_id"], keep="last").reset_index(drop=True)
-
-        # Stage + upsert
-        work.to_sql(staging_table, self._conn, if_exists="replace", index=False)
+            work[k] = df[src] if (src is not None and src in df.columns) else None
+    
+        # ----- validate / deduplicate -----
+        comp = work["comp_id"].astype(str).str.strip()
+        valid_mask = comp.str.len().eq(14) & comp.ne("")
+        skipped = int((~valid_mask).sum())
+    
+        work = (work.loc[valid_mask, ["comp_id", "inchikey", "smiles", "inchi",
+                                      "classyfire_class", "classyfire_superclass"]]
+                    .drop_duplicates(subset=["comp_id"], keep="last")
+                    .reset_index(drop=True))
+    
+        if work.empty:
+            return {"rows": int(len(df)), "valid": 0, "written": 0, "skipped": int(skipped)}
+    
+        # ----- bulk load: staging -> recreate main table (fast) -----
+        cur = self._conn.cursor()
+        # speed PRAGMAs during load
+        cur.execute("PRAGMA synchronous=OFF")
+        cur.execute("PRAGMA temp_store=MEMORY")
+        cur.execute("PRAGMA cache_size=-200000")
+    
+        # 1) write to staging with big chunks & multi-row inserts
+        work.to_sql(staging_table, self._conn, if_exists="replace", index=False,
+                    chunksize=chunksize, method="multi")
+    
+        # 2) atomically recreate the target table with schema + copy from staging
         with self._tx() as cur:
+            cur.execute(f"DROP TABLE IF EXISTS {self.table}")
+            cur.executescript(SCHEMA_SQL.format(table=self.table))
             cur.execute(f"""
                 INSERT INTO {self.table} (
-                    comp_id, smiles, inchi, inchikey, classyfire_class, classyfire_superclass
+                    comp_id, smiles, inchi, inchikey,
+                    classyfire_class, classyfire_superclass
                 )
-                SELECT comp_id, smiles, inchi, inchikey, classyfire_class, classyfire_superclass
+                SELECT comp_id, smiles, inchi, inchikey,
+                       classyfire_class, classyfire_superclass
                 FROM {staging_table}
-                ON CONFLICT(comp_id) DO UPDATE SET
-                    smiles                = COALESCE(excluded.smiles,                {self.table}.smiles),
-                    inchi                 = COALESCE(excluded.inchi,                 {self.table}.inchi),
-                    inchikey              = COALESCE(excluded.inchikey,              {self.table}.inchikey),
-                    classyfire_class      = COALESCE(excluded.classyfire_class,      {self.table}.classyfire_class),
-                    classyfire_superclass = COALESCE(excluded.classyfire_superclass, {self.table}.classyfire_superclass)
             """)
-            affected = cur.rowcount or 0
+            written = cur.rowcount or len(work)
             cur.execute(f"DROP TABLE IF EXISTS {staging_table}")
-
-        return {
-            "rows": int(len(df)),
-            "valid": int(len(work)),
-            "inserted_or_updated": int(affected),
-            "skipped_no_or_bad_inchikey": int(skipped),
-        }
+    
+        # Make sure indexes & settings table exist (idempotent)
+        self._ensure_schema_and_settings()
+    
+        return {"rows": int(len(df)), "valid": int(len(work)), "written": int(written), "skipped": int(skipped)}
 
     def compute_fingerprints(
         self,
@@ -447,7 +516,8 @@ class CompoundDatabase:
         for cid in comp_id_list:
             r = next((row for row in rows if row["comp_id"] == cid), None)
             if r is None:
-                out.append(None); continue
+                out.append(None)
+                continue
             dense_blob  = r["fingerprint_dense"] or b""
             bits_blob   = r["fingerprint_bits"] or b""
             counts_blob = r["fingerprint_counts"] or b""
