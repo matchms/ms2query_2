@@ -223,7 +223,10 @@ def test_overwrite_metadata_from_dataframe_basic_and_mapping(tmp_path):
     assert stats["written"] == 2
 
     # Check DB content
-    df_db = pd.read_sql_query("SELECT comp_id, smiles, classyfire_class, classyfire_superclass, inchikey, inchi FROM compounds", cdb._conn)
+    df_db = pd.read_sql_query(
+        "SELECT comp_id, smiles, classyfire_class, classyfire_superclass, inchikey, inchi FROM compounds",
+        cdb._conn
+        )
     assert set(df_db["comp_id"]) == {"AAAQFGUYHFJNHI", "AABFWJDLCCDJJN"}
 
     # Row without full inchikey provided -> stored as NULL. Inchi not provided -> NULL

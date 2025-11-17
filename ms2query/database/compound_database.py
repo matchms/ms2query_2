@@ -147,7 +147,9 @@ class CompoundDatabase:
         cur.executescript(SCHEMA_SQL.format(table=self.table))
         cur.executescript(SETTINGS_SQL.format(settings_table=self.settings_table))
         # Sync: if row exists -> adopt it; else write our instance defaults.
-        row = cur.execute(f"SELECT nbits, radius, sparse, count, dtype FROM {self.settings_table} WHERE id=1").fetchone()
+        row = cur.execute(
+            f"SELECT nbits, radius, sparse, count, dtype FROM {self.settings_table} WHERE id=1"
+            ).fetchone()
         if row:
             # Adopt stored settings into the instance to guarantee consistency across sessions
             self.fingerprint_nbits = int(row["nbits"])
