@@ -146,7 +146,7 @@ class MS2QueryLibrary:
         self,
         spectra: list[Spectrum],
         *,
-        k_spectra: int = 100,
+        k_spectra: int = 10,
         ef: Optional[int] = None,        
         ):
         """
@@ -193,7 +193,7 @@ class MS2QueryLibrary:
             raise ValueError("k_compounds cannot be larger than k_spectra")
 
         # Step1: Query spectral embeddings
-        results = self.query_spectra_by_spectra(spectra, k=k_spectra, ef=ef)
+        results = self.query_spectra_by_spectra(spectra, k_spectra=k_spectra, ef=ef)
 
         # Pick k_compounds top compounds from the k_spectra hits (if possible)
         spec_ids = results.spec_id.values
@@ -202,7 +202,7 @@ class MS2QueryLibrary:
         compounds = compounds.merge(results, on="spec_id").sort_values(["query_ix", "rank"])
 
         # Pick no more than k_compounds per query_ix
-        idx = compounds.groupby(['query_ix', 'comp_id'])['score'].idxmax()
+        idx = compounds.groupby(['query_ix', 'rank'])['score'].idxmax()
         best_per_pair = compounds.loc[idx]
 
         # Within each query_ix, keep the top-k by score
