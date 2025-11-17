@@ -226,7 +226,7 @@ class MS2QueryLibrary:
         """
         top_compounds = self.query_compounds_by_spectra(spectra)
         # TODO: implement analogue search logic here
-        return top_compounds.drop_duplicated("query_ix")
+        return top_compounds.drop_duplicates("query_ix")
 
         
     # ----------------------------- helpers / optional glue -----------------------------
