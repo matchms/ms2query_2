@@ -142,6 +142,31 @@ class MS2QueryLibrary:
         df = pd.DataFrame(rows, columns=["query_ix", "rank", "spec_id", "score"])
         return df
 
+    def query_spectra_by_spectra(
+        self,
+        spectra: list[Spectrum],
+        *,
+        k_spectra: int = 100,
+        ef: Optional[int] = None,        
+        ):
+        """
+        Query the embedding index with spectra, return top-k_spectra per spectrum.
+
+        Parameters
+        ----------
+        spectra : list[Spectrum]
+            Query spectra.
+        k_spectra : int
+            Number of top spectra to retrieve from the embedding index.
+        ef : Optional[int]
+            nmslib ef parameter (higher = better recall / slower).
+        """
+        self._ensure_index()
+        spectra = _ensure_spectra_list(spectra)
+
+        # Query spectral embeddings
+        return self.query_embedding_index(spectra, k=k_spectra, ef=ef)
+
     def query_compounds_by_spectra(
         self,
         spectra: list[Spectrum],
@@ -164,14 +189,11 @@ class MS2QueryLibrary:
         ef : Optional[int]
             nmslib ef parameter (higher = better recall / slower).
         """
-        self._ensure_index()
-        spectra = _ensure_spectra_list(spectra)
-
         if k_compounds > k_spectra:
             raise ValueError("k_compounds cannot be larger than k_spectra")
 
         # Step1: Query spectral embeddings
-        results = self.query_embedding_index(spectra, k=k_spectra, ef=ef)
+        results = self.query_spectra_by_spectra(spectra, k=k_spectra, ef=ef)
 
         # Pick k_compounds top compounds from the k_spectra hits (if possible)
         spec_ids = results.spec_id.values
@@ -193,6 +215,18 @@ class MS2QueryLibrary:
         )
         
         return df_selected
+
+    def analogue_search(
+        self,
+        spectra: list[Spectrum],
+        ):
+        """
+        Perform an analogue search for the given spectra.
+        TODO: implement analogue search logic here.
+        """
+        top_compounds = self.query_compounds_by_spectra(spectra)
+        # TODO: implement analogue search logic here
+        return top_compounds.drop_duplicated("query_ix")
 
         
     # ----------------------------- helpers / optional glue -----------------------------
