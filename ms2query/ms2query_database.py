@@ -100,7 +100,7 @@ class MS2QueryDatabase:
             DataFrame containing inchikey and other relevant compound information.
             Should at least contain smiles or inchi.
         """
-        self.all_cdb.upsert_metadata_from_dataframe(df)
+        self.all_cdb.overwrite_metadata_from_dataframe(df)
 
     # --------------------------------- retrievals --------------------------------
     # ---- by spec_id ----
