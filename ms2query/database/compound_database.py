@@ -240,8 +240,8 @@ class CompoundDatabase:
             return {"fingerprint_bits": b"", "fingerprint_counts": b"", "fingerprint_dense": encode_dense_fp(fp)}  # type: ignore[arg-type]
 
     def _row_to_fp(self, row: sqlite3.Row):
-        dense_blob  = row["fingerprint_dense"]  or b""
-        bits_blob   = row["fingerprint_bits"]   or b""
+        dense_blob = row["fingerprint_dense"] or b""
+        bits_blob = row["fingerprint_bits"] or b""
         counts_blob = row["fingerprint_counts"] or b""
         if dense_blob:
             return decode_dense_fp(dense_blob, dtype=self.fingerprint_dtype_dense)
