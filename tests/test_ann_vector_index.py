@@ -147,7 +147,7 @@ def test_csr_row_from_tuple_coalesces_and_validates():
     # After coalescing index 2: total 3.0
     np.testing.assert_allclose(row.toarray(), [[3.0, 0.0, 3.0, 0.0]])
 
-    with pytest.raises(ValueError, match="Query index"):
+    with pytest.raises(ValueError, match="index 5 >="):
         csr_row_from_tuple((np.array([5]), np.array([1.0], np.float32)), dim=5)
 
 

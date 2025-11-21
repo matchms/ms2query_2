@@ -1,11 +1,13 @@
 import json
 import os
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterable, List, Optional, Sequence, Tuple
 import nmslib
 import numpy as np
 from scipy import sparse as sp
+from tqdm import tqdm
+from umap import UMAP
 from ms2query.metrics import tanimoto_l1_query_vs_block
 
 
@@ -17,58 +19,113 @@ def tuples_to_csr(
     items: Sequence[Tuple[np.ndarray, np.ndarray]], dim: int
 ) -> sp.csr_matrix:
     """
-    Build a CSR (N, dim) from sequence of (indices_uint32, values_float32).
-    Coalesces duplicates per row. Enforces float32 values.
+    Build a CSR (N, dim) from sequence of (indices, values).
+    Coalesces duplicate indices per row.
     """
     N = len(items)
     indptr = np.empty(N + 1, dtype=np.int64)
     indptr[0] = 0
-    indices_list = []
-    data_list = []
+    indices_list: list[np.ndarray] = []
+    data_list: list[np.ndarray] = []
+
     for i, (idxs, vals) in enumerate(items):
-        idxs = np.asarray(idxs, dtype=np.int32)
-        vals = np.asarray(vals, dtype=np.float32)
-        if idxs.size and idxs.max() >= dim:
-            raise ValueError(f"Row {i}: index {idxs.max()} >= dim {dim}")
-        order = np.argsort(idxs, kind="mergesort")
-        idxs = idxs[order]
-        vals = vals[order]
-        if idxs.size > 1:
-            dup = idxs[1:] == idxs[:-1]
-            if dup.any():
-                # compress duplicates
-                uniq, start = np.unique(idxs, return_index=True)
-                vals = np.add.reduceat(vals, start)
-                idxs = uniq
+        idxs, vals = _coalesce_sparse_row(idxs, vals, dim, row_id=i)
         indices_list.append(idxs)
         data_list.append(vals)
         indptr[i + 1] = indptr[i] + idxs.size
-    if N:
-        indices = np.concatenate(indices_list) if indices_list else np.empty(0, np.int32)
-        data = np.concatenate(data_list) if data_list else np.empty(0, np.float32)
-    else:
-        indices = np.empty(0, np.int32)
-        data = np.empty(0, np.float32)
+
+    indices = np.concatenate(indices_list) if indices_list else np.empty(0, np.int32)
+    data = np.concatenate(data_list) if data_list else np.empty(0, np.float32)
     return sp.csr_matrix((data, indices, indptr), shape=(N, dim), dtype=np.float32)
 
-def csr_row_from_tuple(item: Tuple[np.ndarray, np.ndarray], dim: int) -> sp.csr_matrix:
-    idxs = np.asarray(item[0], dtype=np.int32)
-    vals = np.asarray(item[1], dtype=np.float32)
+
+def _coalesce_sparse_row(
+    idxs: np.ndarray,
+    vals: np.ndarray,
+    dim: int,
+    row_id: Optional[int] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Sort indices and sum duplicate values."""
+    idxs = np.asarray(idxs, dtype=np.int32)
+    vals = np.asarray(vals, dtype=np.float32)
+
     if idxs.size and idxs.max() >= dim:
-        raise ValueError(f"Query index {idxs.max()} >= dim {dim}")
+        ctx = f"Row {row_id}: " if row_id is not None else ""
+        raise ValueError(f"{ctx}index {idxs.max()} >= dim {dim}")
+
+    if idxs.size == 0:
+        return idxs, vals
+
     order = np.argsort(idxs, kind="mergesort")
-    idxs = idxs[order]
-    vals = vals[order]
+    idxs, vals = idxs[order], vals[order]
+
+    # Coalesce duplicates
     if idxs.size > 1 and (idxs[1:] == idxs[:-1]).any():
         uniq, start = np.unique(idxs, return_index=True)
         vals = np.add.reduceat(vals, start)
         idxs = uniq
+
+    return idxs, vals
+
+
+def csr_row_from_tuple(item: Tuple[np.ndarray, np.ndarray], dim: int) -> sp.csr_matrix:
+    """Build a single-row CSR matrix from (indices, values) tuple."""
+    idxs, vals = _coalesce_sparse_row(item[0], item[1], dim)
     indptr = np.array([0, idxs.size], dtype=np.int64)
     return sp.csr_matrix((vals, idxs, indptr), shape=(1, dim), dtype=np.float32)
 
+
 def l1_norms_csr(X: sp.csr_matrix) -> np.ndarray:
-    # float64 for safety with very large counts
-    return np.asarray(X.sum(axis=1)).ravel().astype(np.float64, copy=False)
+    """Compute L1 norms for each row of a CSR matrix."""
+    return np.asarray(np.abs(X).sum(axis=1)).ravel().astype(np.float64)
+
+
+def _umap_from_precomputed_knn(
+    knn_indices: np.ndarray,
+    knn_dists: np.ndarray,
+    *,
+    n_neighbors: int = 15,
+    n_components: int = 2,
+    min_dist: float = 0.1,
+    spread: float = 1.0,
+    random_state: int = 42,
+    n_epochs: Optional[int] = None,
+    negative_sample_rate: int = 5,
+    verbose: bool = False,
+) -> np.ndarray:
+    """
+    Build UMAP embedding from a precomputed kNN graph.
+
+    Uses UMAP's native precomputed_knn parameter for clean integration.
+    """
+    N = knn_indices.shape[0]
+
+    # UMAP accepts precomputed kNN via tuple: (indices, distances, forest)
+    # forest=None signals we don't have an RP forest for additional queries
+    precomputed_knn = (
+        knn_indices.astype(np.int32),
+        knn_dists.astype(np.float32),
+        None,  # no random projection forest
+    )
+
+    reducer = UMAP(
+        n_neighbors=n_neighbors,
+        n_components=n_components,
+        min_dist=min_dist,
+        spread=spread,
+        random_state=random_state,
+        n_epochs=n_epochs,
+        negative_sample_rate=negative_sample_rate,
+        verbose=verbose,
+        precomputed_knn=precomputed_knn,
+        metric="precomputed",  # signals we're using precomputed distances
+    )
+
+    # Fit with dummy data; UMAP will use precomputed_knn
+    X_dummy = np.zeros((N, 1), dtype=np.float32)
+    embedding = reducer.fit_transform(X_dummy)
+
+    return np.asarray(embedding, dtype=np.float32)
 
 
 # ======================
@@ -77,9 +134,10 @@ def l1_norms_csr(X: sp.csr_matrix) -> np.ndarray:
 
 @dataclass
 class _BaseANN:
+    """Base class for ANN indices."""
     dim: int
     space: str
-    _meta: dict = None
+    _meta: dict = field(default_factory=dict)
 
     def save_index(self, path_prefix: str) -> None:
         raise NotImplementedError
@@ -88,9 +146,6 @@ class _BaseANN:
         raise NotImplementedError
 
     def build_index(self, *args, **kwargs):
-        raise NotImplementedError
-
-    def build_index_from_sqlite(self, *args, **kwargs):
         raise NotImplementedError
 
     def query(self, *args, **kwargs):
@@ -103,17 +158,20 @@ class _BaseANN:
 
 class EmbeddingIndex(_BaseANN):
     """
-    Dense cosine ANN using nmslib (HNSW).
-    - build_index(vectors, spec_ids, ...)
-    - build_index_from_sqlite(sqlite_conn or SpectralDatabase, embeddings_table='embeddings', ...)
-    - query(vector, k)
-    - save_index / load_index
+    Dense cosine ANN using nmslib HNSW.
+
+    Methods
+    -------
+    build_index(vectors, spec_ids, ...)
+    build_index_from_sqlite(db, embeddings_table='embeddings', ...)
+    query(vector, k)
+    save_index / load_index
     """
 
     def __init__(self, dim: int = 500):
         super().__init__(dim=dim, space="cosinesimil")
-        self._index = None
-        self._comp_ids: Optional[np.ndarray] = None
+        self._index: Optional[nmslib.dist.FloatIndex] = None
+        self._ids: Optional[np.ndarray] = None
 
     def build_index(
         self,
@@ -124,47 +182,36 @@ class EmbeddingIndex(_BaseANN):
         ef_construction: int = 200,
         post_init_ef: int = 200,
     ) -> None:
-        """Build index from dense vectors and spec_ids.
-        
+        """
+        Build index from dense vectors.
+
         Parameters
         ----------
         vectors : np.ndarray
             2D array of shape (N, dim) with float32 vectors.
         spec_ids : Iterable[str]
-            Iterable of spec_id strings of length N.
-        M : int
-            HNSW M parameter (connectivity)
-        ef_construction : int
-            HNSW efConstruction parameter
-        post_init_ef : int
-            HNSW query-time ef parameter
+            Spec IDs of length N.
+        M, ef_construction, post_init_ef : int
+            HNSW parameters.
         """
         X = np.asarray(vectors, dtype=np.float32)
         if X.ndim != 2 or X.shape[1] != self.dim:
-            raise ValueError(f"Expected vectors shape (N, {self.dim}), got {X.shape}")
+            raise ValueError(f"Expected shape (N, {self.dim}), got {X.shape}")
+
         ids = np.asarray(list(spec_ids), dtype=object)
-        if ids.shape[0] != X.shape[0]:
+        if len(ids) != len(X):
             raise ValueError("spec_ids length must match number of vectors.")
 
-        index = nmslib.init(method='hnsw', space=self.space, data_type=nmslib.DataType.DENSE_VECTOR)
-        index.addDataPointBatch(X)              # can be called multiple times before createIndex
-        index.createIndex({'M': M, 'efConstruction': ef_construction}, print_progress=False)
-        index.setQueryTimeParams({'ef': post_init_ef})
-
-        self._index = index
+        self._index = self._create_hnsw_index(
+            X, M=M, ef_construction=ef_construction, post_init_ef=post_init_ef, sparse=False
+        )
         self._ids = ids
         self._meta = {
-            "type": "ANNMS2DeepIndex",
+            "type": "EmbeddingIndex",
             "M": M,
             "ef_construction": ef_construction,
             "post_init_ef": post_init_ef,
         }
-
-    def _count_rows(self, cursor: sqlite3.Cursor, table: str, where_clause: str) -> int:
-        sql = f"SELECT COUNT(1) FROM {table} {where_clause};"
-        cursor.execute(sql)
-        (n,) = cursor.fetchone()
-        return int(n)
 
     def build_index_from_sqlite(
         self,
@@ -178,9 +225,9 @@ class EmbeddingIndex(_BaseANN):
         post_init_ef: int = 200,
     ) -> int:
         """
-        Streams embeddings from SQLite and constructs an HNSW index in-place.
-        Indexing is performed with a SINGLE addDataPointBatch call to avoid
-        backend-specific issues when adding multiple batches before createIndex.
+        Stream embeddings from SQLite and build HNSW index.
+
+        Returns the number of vectors indexed.
 
         Parameters
         ----------
@@ -198,31 +245,24 @@ class EmbeddingIndex(_BaseANN):
             HNSW efConstruction parameter
         post_init_ef : int
             HNSW query-time ef parameter
-
-        Returns
-        -------
-        int
-            Number of vectors indexed
         """
         cur = db.cursor()
 
-        # Detect and validate dimension
+        # Detect dimension
         d = self._detect_dimension(cur, embeddings_table)
-        if self.dim != d:
-            self.dim = d  # adopt DB dimension
+        self.dim = d
 
-        # Build WHERE clause & count rows up-front
-        where_clause = self._build_where_clause(where_sql)
-        total = self._count_rows(cur, embeddings_table, where_clause)
+        # Count and load
+        where_clause = _build_where_clause(where_sql)
+        total = _count_rows(cur, embeddings_table, where_clause)
         if total == 0:
-            raise ValueError(f"No embeddings loaded from {embeddings_table}.")
+            raise ValueError(f"No embeddings in {embeddings_table}.")
 
-        # Pre-allocate one dense (N, d) array and ids array
+        # Pre-allocate and fill
         X = np.empty((total, d), dtype=np.float32)
         ids = np.empty(total, dtype=object)
 
-        # Stream rows and fill pre-allocated buffers in deterministic order
-        sql = f"SELECT spec_id, vec FROM {embeddings_table} {where_clause} ORDER BY spec_id ASC;"
+        sql = f"SELECT spec_id, vec FROM {embeddings_table} {where_clause} ORDER BY spec_id ASC"
         cur.execute(sql)
 
         filled = 0
@@ -233,153 +273,123 @@ class EmbeddingIndex(_BaseANN):
             for sid, blob in rows:
                 vec = np.frombuffer(blob, dtype=np.float32, count=d)
                 if vec.size != d:
-                    raise ValueError(
-                        f"Embedding for '{sid}' has {vec.size} dimensions, expected {d}."
-                    )
-                X[filled] = vec  # copies from the buffer
+                    raise ValueError(f"Embedding '{sid}' has {vec.size} dims, expected {d}")
+                X[filled] = vec
                 ids[filled] = str(sid)
                 filled += 1
+
         cur.close()
 
+        # Handle case where table changed mid-scan
         if filled != total:
-            # defensive: table changed mid-scan — shrink to what we actually loaded
             X = X[:filled]
             ids = ids[:filled]
-            total = filled
-            if total == 0:
+            if filled == 0:
                 raise ValueError(f"No embeddings loaded from {embeddings_table}.")
 
-        # Build the HNSW index with a SINGLE batch add
-        index = nmslib.init(method='hnsw', space='cosinesimil', data_type=nmslib.DataType.DENSE_VECTOR)
-        index.addDataPointBatch(X)
-        index.createIndex({'M': M, 'efConstruction': ef_construction}, print_progress=False)
-        index.setQueryTimeParams({'ef': post_init_ef})
-
-        # Commit
-        self._index = index
+        self._index = self._create_hnsw_index(
+            X, M=M, ef_construction=ef_construction, post_init_ef=post_init_ef, sparse=False
+        )
         self._ids = ids
         self._meta = {
-            "type": "ANNMS2DeepIndex",
+            "type": "EmbeddingIndex",
             "built_from_sqlite": True,
             "embeddings_table": embeddings_table,
             "M": M,
             "ef_construction": ef_construction,
             "post_init_ef": post_init_ef,
         }
-        return int(total)
+        return total
 
     def _detect_dimension(self, cursor: sqlite3.Cursor, table: str) -> int:
-        """Detect and validate embedding dimension from table."""
-        sql = f"SELECT DISTINCT d FROM {table} ORDER BY d;"
-        dims = [int(row[0]) for row in cursor.execute(sql)]
-        
+        """Detect embedding dimension from table."""
+        dims = [int(r[0]) for r in cursor.execute(f"SELECT DISTINCT d FROM {table}")]
         if not dims:
-            raise ValueError(f"No rows found in table '{table}'.")
+            raise ValueError(f"No rows in '{table}'.")
         if len(dims) > 1:
-            raise ValueError(
-                f"Mixed dimensions in table '{table}': {dims}. "
-                f"All embeddings must have the same dimension."
-            )
-        
+            raise ValueError(f"Mixed dimensions in '{table}': {dims}")
         return dims[0]
 
-    def _build_where_clause(self, where_sql: Optional[str]) -> str:
-        """Build WHERE clause from user input, handling various formats."""
-        if not where_sql:
-            return ""
-        
-        where_sql = where_sql.strip()
-        if where_sql.upper().startswith("WHERE"):
-            return where_sql
-        else:
-            return f"WHERE {where_sql}"
+    def _create_hnsw_index(
+        self, data, *, M: int, ef_construction: int, post_init_ef: int, sparse: bool
+    ):
+        """Create and configure an nmslib HNSW index."""
+        dtype = nmslib.DataType.SPARSE_VECTOR if sparse else nmslib.DataType.DENSE_VECTOR
+        index = nmslib.init(method="hnsw", space=self.space, data_type=dtype)
+        index.addDataPointBatch(data)
+        index.createIndex({"M": M, "efConstruction": ef_construction}, print_progress=False)
+        index.setQueryTimeParams({"ef": post_init_ef})
+        return index
 
-    # ---------- querying ----------
     def query(
-            self,
-            vector: np.ndarray,
-            k: int = 10,
-            ef: Optional[int] = None,
-            ) -> List[Tuple[str, float]]:
-        """Query the index with a single vector.
-    
-        Parameters
-        ----------
-        vector : np.ndarray
-            1D array of shape (dim,) with float32 vector.
-        k : int
-            Number of nearest neighbors to return.
-        ef : Optional[int]
-            nmslib ef parameter (higher = better recall / slower).
+        self,
+        vector: np.ndarray,
+        k: int = 10,
+        ef: Optional[int] = None,
+    ) -> List[Tuple[str, float]]:
+        """
+        Query for k nearest neighbors.
+
+        Returns list of (spec_id, similarity) tuples.
         """
         if self._index is None:
             raise RuntimeError("Index not built or loaded.")
+
         v = np.asarray(vector, dtype=np.float32).reshape(1, -1)
         if v.shape[1] != self.dim:
-            raise ValueError(f"Query vector must have dim={self.dim}")
+            raise ValueError(f"Query must have dim={self.dim}")
 
         if ef is not None:
-            self._index.setQueryTimeParams({'ef': int(ef)})
+            self._index.setQueryTimeParams({"ef": ef})
 
-        res = self._index.knnQueryBatch(v, k=k)   # returns [(idxs, dists)]
-        idxs, dists = res[0]
-        idxs = np.asarray(idxs, dtype=np.int64)
-        dists = np.asarray(dists, dtype=np.float32)
-        sims = 1.0 - dists  # cosinesimil → distance = 1 - cosine
+        idxs, dists = self._index.knnQueryBatch(v, k=k)[0]
+        sims = 1.0 - np.asarray(dists, dtype=np.float32)  # cosine distance -> similarity
         return [(str(self._ids[i]), float(sims[j])) for j, i in enumerate(idxs)]
 
-    # ---------- persistence ----------
     def save_index(self, path_prefix: str) -> None:
-        """Save index to files with given prefix.
-        """
-        if self._index is None or self._ids is None:
-            raise RuntimeError("Index not built or loaded.")
-        meta_path = f"{path_prefix}.meta.json"
-        ids_path = f"{path_prefix}.ids.npy"
-        hnsw_path = str(path_prefix)  #f"{path_prefix}.nmslib"
-        self._index.saveIndex(hnsw_path, save_data=True)
-        np.save(ids_path, self._ids)
-        meta = dict(self._meta or {})
-        meta.update({"dim": self.dim, "space": self.space})
-        with open(meta_path, "w", encoding="utf-8") as f:
+        if self._index is None:
+            raise RuntimeError("Index not built.")
+
+        self._index.saveIndex(path_prefix, save_data=True)
+        np.save(f"{path_prefix}.ids.npy", self._ids)
+
+        meta = {**self._meta, "dim": self.dim, "space": self.space}
+        with open(f"{path_prefix}.meta.json", "w") as f:
             json.dump(meta, f)
 
     def load_index(self, path_prefix: str) -> None:
-        """Load index from files with given prefix.
-        """
-        meta_path = f"{path_prefix}.meta.json"
-        ids_path = f"{path_prefix}.ids.npy"
-        hnsw_path = str(path_prefix)  #f"{path_prefix}.nmslib"
-        if not (os.path.exists(meta_path) and os.path.exists(ids_path) and os.path.exists(hnsw_path)):
-            raise FileNotFoundError("Missing files for EmbeddingIndex.")
-        with open(meta_path, "r", encoding="utf-8") as f:
+        with open(f"{path_prefix}.meta.json") as f:
             meta = json.load(f)
+
         self.dim = int(meta["dim"])
         self.space = str(meta["space"])
         self._meta = meta
-        self._ids = np.load(ids_path, allow_pickle=True)
-        self._index = nmslib.init(method='hnsw', space=self.space, data_type=nmslib.DataType.DENSE_VECTOR)
-        self._index.loadIndex(hnsw_path, load_data=True)
+        self._ids = np.load(f"{path_prefix}.ids.npy", allow_pickle=True)
+
+        self._index = nmslib.init(
+            method="hnsw", space=self.space, data_type=nmslib.DataType.DENSE_VECTOR
+        )
+        self._index.loadIndex(path_prefix, load_data=True)
 
 
 # ======================
-# ANN-2: Sparse fingerprints (cosine ANN + exact L1/Jaccard Tanimoto re-rank)
+# ANN-2: Sparse fingerprints with Tanimoto re-ranking
 # ======================
 
 class FingerprintSparseIndex(_BaseANN):
     """
-    Sparse fingerprints (non-negative counts/weights), million-scale ready.
-    - ANN: nmslib HNSW over sparse cosine ('cosinesimil_sparse').
-    - Re-rank: exact generalized Tanimoto (L1/Jaccard) on top-k*mult candidates,
-               using CSR two-pointer merge (numba), no densification.
+    Sparse fingerprint index with ANN + exact Tanimoto re-ranking.
+
+    Uses nmslib HNSW over sparse cosine for fast candidate retrieval,
+    then re-ranks with exact generalized Tanimoto (L1/Jaccard).
     """
 
     def __init__(self, dim: int = 4096):
         super().__init__(dim=dim, space="cosinesimil_sparse")
-        self._index = None
+        self._index: Optional[nmslib.dist.FloatIndex] = None
         self._comp_ids: Optional[np.ndarray] = None
-        self._csr: Optional[sp.csr_matrix] = None     # DB in CSR
-        self._l1: Optional[np.ndarray] = None         # L1 norms (float64)
+        self._csr: Optional[sp.csr_matrix] = None
+        self._l1: Optional[np.ndarray] = None
 
     def build_index(
         self,
@@ -393,13 +403,22 @@ class FingerprintSparseIndex(_BaseANN):
         keep_csr_for_rerank: bool = True,
         compute_l1_for_rerank: bool = True,
     ) -> None:
+        """
+        Build index from sparse fingerprints.
+
+        Parameters
+        ----------
+        data : CSR matrix or sequence of (indices, values) tuples
+        comp_ids : Compound IDs
+        dim : Required if data is sequence of tuples
+        keep_csr_for_rerank : Store CSR for exact Tanimoto re-ranking
+        compute_l1_for_rerank : Precompute L1 norms for re-ranking
+        """
         if isinstance(data, sp.csr_matrix):
             csr = data.astype(np.float32, copy=False)
             D = csr.shape[1]
         else:
-            D = int(dim if dim is not None else self.dim)
-            if D is None:
-                raise ValueError("dim must be provided when building from tuples.")
+            D = dim if dim is not None else self.dim
             csr = tuples_to_csr(data, dim=D)
 
         if (csr.data < 0).any():
@@ -407,26 +426,26 @@ class FingerprintSparseIndex(_BaseANN):
 
         self.dim = D
         comp_ids = np.asarray(list(comp_ids))
-        if comp_ids.shape[0] != csr.shape[0]:
-            raise ValueError("comp_ids length must match number of rows.")
+        if len(comp_ids) != csr.shape[0]:
+            raise ValueError("comp_ids length must match data rows.")
 
-        # ANN over sparse cosine
-        index = nmslib.init(method='hnsw', space=self.space, data_type=nmslib.DataType.SPARSE_VECTOR)
+        # Build ANN index
+        index = nmslib.init(
+            method="hnsw", space=self.space, data_type=nmslib.DataType.SPARSE_VECTOR
+        )
         index.addDataPointBatch(csr)
-        index.createIndex({'M': M, 'efConstruction': ef_construction}, print_progress=False)
-        index.setQueryTimeParams({'ef': post_init_ef})
+        index.createIndex({"M": M, "efConstruction": ef_construction}, print_progress=False)
+        index.setQueryTimeParams({"ef": post_init_ef})
 
         self._index = index
         self._comp_ids = comp_ids
         self._csr = csr if keep_csr_for_rerank else None
         self._l1 = l1_norms_csr(csr) if compute_l1_for_rerank else None
         self._meta = {
-            "type": "ANNFingerprintSparseIndex",
+            "type": "FingerprintSparseIndex",
             "M": M,
             "ef_construction": ef_construction,
             "post_init_ef": post_init_ef,
-            "keep_csr_for_rerank": bool(keep_csr_for_rerank),
-            "compute_l1_for_rerank": bool(compute_l1_for_rerank),
         }
 
     def query(
@@ -438,96 +457,197 @@ class FingerprintSparseIndex(_BaseANN):
         re_rank: bool = True,
         candidate_multiplier: int = 5,
     ) -> List[Tuple[int, float]]:
+        """
+        Query for k nearest neighbors.
+
+        Parameters
+        ----------
+        query_fp : (indices, values) tuple or single-row CSR
+        k : Number of results
+        re_rank : Use exact Tanimoto re-ranking
+        candidate_multiplier : Fetch k * multiplier candidates for re-ranking
+
+        Returns list of (comp_id, similarity) tuples.
+        """
         if self._index is None:
             raise RuntimeError("Index not built or loaded.")
 
-        # Normalize query to 1×D CSR
-        if isinstance(query_fp, sp.csr_matrix):
-            q = query_fp
-            if q.shape[0] != 1:
-                raise ValueError("CSR query must have shape (1, D).")
-            if q.shape[1] != self.dim:
-                raise ValueError(f"CSR query dim mismatch: got {q.shape[1]}, expected {self.dim}")
-        else:
-            q = csr_row_from_tuple(query_fp, dim=self.dim)
-        if (q.data < 0).any():
-            raise ValueError("Query fingerprint must be non-negative for Tanimoto.")
+        q = self._normalize_query(query_fp)
         if q.nnz == 0:
             return []
 
         if ef is not None:
-            self._index.setQueryTimeParams({'ef': int(ef)})
+            self._index.setQueryTimeParams({"ef": ef})
 
-        fetch = max(k, int(k * candidate_multiplier))
-
-        # Use batch API for CSR input
-        res = self._index.knnQueryBatch(q, k=fetch)
-        idxs, dists = res[0]
+        fetch = max(k, k * candidate_multiplier)
+        idxs, dists = self._index.knnQueryBatch(q, k=fetch)[0]
         idxs = np.asarray(idxs, dtype=np.int64)
         dists = np.asarray(dists, dtype=np.float32)
 
+        # Without re-ranking, return cosine similarities
         if not re_rank or self._csr is None or self._l1 is None:
-            sims = 1.0 - dists  # cosinesimil_sparse: distance = 1 - cosine
+            sims = 1.0 - dists
             return [(int(self._comp_ids[i]), float(s)) for i, s in zip(idxs[:k], sims[:k])]
 
-        # Exact L1/Jaccard Tanimoto on candidates (no densification)
+        # Re-rank with exact Tanimoto
         Y = self._csr[idxs]
-        sum1 = float(q.sum())  # L1 of query
-        sumsY = self._l1[idxs]  # L1 of candidates (float64)
-        tan = tanimoto_l1_query_vs_block(q, Y, sum1=sum1, sumsY=sumsY)
-        order = np.argsort(-tan)
-        idxs_sorted = idxs[order][:k]
-        scores_sorted = tan[order][:k]
-        return [(int(self._comp_ids[i]), float(s)) for i, s in zip(idxs_sorted, scores_sorted)]
+        tan = tanimoto_l1_query_vs_block(q, Y, sum1=float(q.sum()), sumsY=self._l1[idxs])
+        order = np.argsort(-tan)[:k]
 
-    # -------- persistence --------
+        return [(int(self._comp_ids[idxs[i]]), float(tan[i])) for i in order]
 
-    def save_index(self, path_prefix: str) -> None:
+    def _normalize_query(self, query_fp) -> sp.csr_matrix:
+        """Convert query to single-row CSR and validate."""
+        if isinstance(query_fp, sp.csr_matrix):
+            if query_fp.shape[0] != 1 or query_fp.shape[1] != self.dim:
+                raise ValueError(f"CSR query must have shape (1, {self.dim})")
+            q = query_fp
+        else:
+            q = csr_row_from_tuple(query_fp, dim=self.dim)
+
+        if (q.data < 0).any():
+            raise ValueError("Query must be non-negative for Tanimoto.")
+        return q
+
+    def compute_dr_coordinates(
+        self,
+        *,
+        n_neighbors: int = 15,
+        n_components: int = 2,
+        min_dist: float = 0.1,
+        spread: float = 1.0,
+        random_state: int = 42,
+        n_epochs: Optional[int] = None,
+        negative_sample_rate: int = 5,
+        ef: Optional[int] = None,
+        candidate_multiplier: int = 5,
+        use_exact_tanimoto: bool = True,
+        verbose: bool = False,
+        batch_size: int = 2048,
+        num_threads: int = 0,
+    ) -> np.ndarray:
+        """
+        Compute UMAP embedding coordinates from the index.
+
+        Builds kNN graph using ANN (optionally with Tanimoto re-ranking),
+        then runs UMAP on the precomputed graph.
+        """
         if self._index is None or self._comp_ids is None:
             raise RuntimeError("Index not built or loaded.")
+        if self._csr is None:
+            raise RuntimeError("CSR not available; use keep_csr_for_rerank=True")
+        if use_exact_tanimoto and self._l1 is None:
+            raise RuntimeError("L1 norms not available; use compute_l1_for_rerank=True")
 
-        meta_path = f"{path_prefix}.meta.json"
-        ids_path = f"{path_prefix}.ids.npy"
-        hnsw_path = f"{path_prefix}.nmslib"
-        csr_path = f"{path_prefix}.csr.npz"
-        l1_path = f"{path_prefix}.l1.npy"
+        if ef is not None:
+            self._index.setQueryTimeParams({"ef": ef})
 
-        self._index.saveIndex(hnsw_path)
-        np.save(ids_path, self._comp_ids)
-        meta = dict(self._meta or {})
-        meta.update({"dim": self.dim, "space": self.space})
-        with open(meta_path, "w", encoding="utf-8") as f:
+        N = len(self._comp_ids)
+        fetch = max(n_neighbors, n_neighbors * candidate_multiplier)
+
+        knn_idx = np.empty((N, n_neighbors), dtype=np.int32)
+        knn_dist = np.empty((N, n_neighbors), dtype=np.float32)
+
+        for start in tqdm(range(0, N, batch_size), disable=not verbose, desc="Building kNN"):
+            end = min(start + batch_size, N)
+            results = self._index.knnQueryBatch(
+                self._csr[start:end], k=fetch, num_threads=num_threads
+            )
+
+            for off, (idxs, dists) in enumerate(results):
+                i = start + off
+                idxs = np.asarray(idxs, dtype=np.int32)
+                dists = np.asarray(dists, dtype=np.float32)
+
+                if use_exact_tanimoto:
+                    # Re-rank with exact Tanimoto
+                    q = self._csr[i]
+                    sims = tanimoto_l1_query_vs_block(
+                        q, self._csr[idxs], sum1=float(q.sum()), sumsY=self._l1[idxs]
+                    )
+                    order = np.argsort(-sims)
+                    idxs, dists = idxs[order], (1.0 - sims[order]).astype(np.float32)
+
+                # Ensure self is in neighbors
+                idxs, dists = self._ensure_self_neighbor(i, idxs, dists, n_neighbors)
+                knn_idx[i] = idxs
+                knn_dist[i] = dists
+
+        return _umap_from_precomputed_knn(
+            knn_idx, knn_dist,
+            n_neighbors=n_neighbors,
+            n_components=n_components,
+            min_dist=min_dist,
+            spread=spread,
+            random_state=random_state,
+            n_epochs=n_epochs,
+            negative_sample_rate=negative_sample_rate,
+            verbose=verbose,
+        )
+
+    @staticmethod
+    def _ensure_self_neighbor(
+        i: int, idxs: np.ndarray, dists: np.ndarray, k: int
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Ensure point i is in its own neighbor list."""
+        if i not in idxs[:k]:
+            # Insert self at position with max distance
+            j = int(np.argmax(dists[:k]))
+            idxs[j], dists[j] = i, 0.0
+
+        order = np.argsort(dists)[:k]
+        return idxs[order], dists[order]
+
+    def save_index(self, path_prefix: str) -> None:
+        if self._index is None:
+            raise RuntimeError("Index not built.")
+
+        self._index.saveIndex(f"{path_prefix}.nmslib")
+        np.save(f"{path_prefix}.ids.npy", self._comp_ids)
+
+        meta = {**self._meta, "dim": self.dim, "space": self.space}
+        with open(f"{path_prefix}.meta.json", "w") as f:
             json.dump(meta, f)
 
         if self._csr is not None:
-            sp.save_npz(csr_path, self._csr, compressed=True)
-        elif os.path.exists(csr_path):
-            os.remove(csr_path)
-
+            sp.save_npz(f"{path_prefix}.csr.npz", self._csr, compressed=True)
         if self._l1 is not None:
-            np.save(l1_path, self._l1)
-        elif os.path.exists(l1_path):
-            os.remove(l1_path)
+            np.save(f"{path_prefix}.l1.npy", self._l1)
 
     def load_index(self, path_prefix: str) -> None:
-        meta_path = f"{path_prefix}.meta.json"
-        ids_path = f"{path_prefix}.ids.npy"
-        hnsw_path = f"{path_prefix}.nmslib"
-        csr_path = f"{path_prefix}.csr.npz"
-        l1_path = f"{path_prefix}.l1.npy"
-
-        if not (os.path.exists(meta_path) and os.path.exists(ids_path) and os.path.exists(hnsw_path)):
-            raise FileNotFoundError("Missing files for ANNFingerprintSparseIndex.")
-
-        with open(meta_path, "r", encoding="utf-8") as f:
+        with open(f"{path_prefix}.meta.json") as f:
             meta = json.load(f)
+
         self.dim = int(meta["dim"])
         self.space = str(meta["space"])
         self._meta = meta
 
-        self._comp_ids = np.load(ids_path, allow_pickle=False)
-        self._index = nmslib.init(method='hnsw', space=self.space, data_type=nmslib.DataType.SPARSE_VECTOR)
-        self._index.loadIndex(hnsw_path, load_data=True)
+        self._comp_ids = np.load(f"{path_prefix}.ids.npy", allow_pickle=False)
 
-        self._csr = sp.load_npz(csr_path).astype(np.float32, copy=False) if os.path.exists(csr_path) else None
+        self._index = nmslib.init(
+            method="hnsw", space=self.space, data_type=nmslib.DataType.SPARSE_VECTOR
+        )
+        self._index.loadIndex(f"{path_prefix}.nmslib", load_data=True)
+
+        csr_path = f"{path_prefix}.csr.npz"
+        l1_path = f"{path_prefix}.l1.npy"
+        self._csr = sp.load_npz(csr_path).astype(np.float32) if os.path.exists(csr_path) else None
         self._l1 = np.load(l1_path, allow_pickle=False) if os.path.exists(l1_path) else None
+
+
+# ======================
+# Helper functions
+# ======================
+
+def _build_where_clause(where_sql: Optional[str]) -> str:
+    """Normalize WHERE clause input."""
+    if not where_sql:
+        return ""
+    where_sql = where_sql.strip()
+    return where_sql if where_sql.upper().startswith("WHERE") else f"WHERE {where_sql}"
+
+
+def _count_rows(cursor: sqlite3.Cursor, table: str, where_clause: str) -> int:
+    """Count rows in table with optional WHERE clause."""
+    cursor.execute(f"SELECT COUNT(1) FROM {table} {where_clause}")
+    return int(cursor.fetchone()[0])
