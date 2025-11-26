@@ -23,7 +23,7 @@ def compute_morgan_fingerprints(
         count: bool = True,
         radius: int = 9,
         n_bits: int = 4096,
-        bit_scaling: Optional[dict] = None,
+        bit_weights: Optional[dict] = None,
         progress_bar: bool = True,
         ) -> np.ndarray:
     """
@@ -43,8 +43,8 @@ def compute_morgan_fingerprints(
         Radius for Morgan fingerprint. Default 9.
     n_bits : int
         Number of bits for the fingerprint. Default 4096.
-    bit_scaling : None or dict
-        If provided, applies scaling to counts in sparse fingerprints.
+    bit_weights : None or dict
+        Weights to apply to bits (only for count=True). Missing bits default to 1.0.
     progress_bar : bool
         Whether to show a progress bar during computation. Default True.
     """
@@ -69,6 +69,6 @@ def compute_morgan_fingerprints(
         fpgen,
         count=count,
         sparse=sparse,
-        bit_scaling=bit_scaling,
+        bit_weights=bit_weights,
         progress_bar=progress_bar,
     )
