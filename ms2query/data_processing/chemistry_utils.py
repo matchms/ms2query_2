@@ -23,6 +23,7 @@ def compute_morgan_fingerprints(
         count: bool = True,
         radius: int = 9,
         n_bits: int = 4096,
+        bit_scaling: Optional[dict] = None,
         progress_bar: bool = True,
         ) -> np.ndarray:
     """
@@ -42,13 +43,15 @@ def compute_morgan_fingerprints(
         Radius for Morgan fingerprint. Default 9.
     n_bits : int
         Number of bits for the fingerprint. Default 4096.
+    bit_scaling : None or dict
+        If provided, applies scaling to counts in sparse fingerprints.
     progress_bar : bool
         Whether to show a progress bar during computation. Default True.
     """
     fpgen = rdFingerprintGenerator.GetMorganGenerator(radius=radius, fpSize=n_bits)
 
     if inchis and not smiles:
-        # convert inchis to smiles
+        # Convert inchis to smiles
         smiles = []
         for inchi in inchis:
             try:
@@ -60,10 +63,12 @@ def compute_morgan_fingerprints(
                 smiles.append(None)
     elif not smiles and not inchis:
         raise ValueError("Either smiles or inchis must be provided.")
+
     return compute_fingerprints_from_smiles(
         smiles, 
         fpgen,
         count=count,
         sparse=sparse,
+        bit_scaling=bit_scaling,
         progress_bar=progress_bar,
     )
