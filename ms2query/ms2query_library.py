@@ -32,7 +32,7 @@ class MS2QueryLibrary:
     """
     db: MS2QueryDatabase
     embedding_index: Optional[EmbeddingIndex] = None
-    fingerprint_index: Optional[FingerprintSparseIndex] = None
+    fingerprint_index: Optional[FingerprintSparseIndex] = None  # for now: reference spectra only
     model_path: Optional[str] = None
 
     # internal: whether to apply spectrum normalization (sum=1) before embedding
@@ -117,19 +117,17 @@ class MS2QueryLibrary:
         """
         self._ensure_index()
         spectra = _ensure_spectra_list(spectra)
-
-        # Compute embeddings (L2-normalized)
         embeddings = self.compute_embeddings(spectra)
 
+        # batched call
+        batch_hits = self.embedding_index.query(embeddings, k=k, ef=ef)
+
         results_all: List[List[Dict[str, Any]]] = []
-        for qi in range(embeddings.shape[0]):
-            # TODO: make faster by querying batch-wise
-            # EmbeddingIndex.query returns list[(spec_id, similarity)]
-            hits = self.embedding_index.query(embeddings[qi], k=k, ef=ef)
-            # convert to standard structure
-            one = []
-            for rk, (spec_id, score) in enumerate(hits, start=1):
-                one.append({"rank": rk, "spec_id": spec_id, "score": float(score)})
+        for hits in batch_hits:
+            one = [
+                {"rank": rk + 1, "spec_id": spec_id, "score": float(score)}
+                for rk, (spec_id, score) in enumerate(hits)
+            ]
             results_all.append(one)
 
         if not return_dataframe:
@@ -147,7 +145,7 @@ class MS2QueryLibrary:
         spectra: list[Spectrum],
         *,
         k_spectra: int = 10,
-        ef: Optional[int] = None,        
+        ef: Optional[int] = None,
         ):
         """
         Query the embedding index with spectra, return top-k_spectra per spectrum.
@@ -166,7 +164,45 @@ class MS2QueryLibrary:
 
         # Query spectral embeddings
         return self.query_embedding_index(spectra, k=k_spectra, ef=ef)
+    
+    def query_compounds_by_compounds(
+        self,
+        compounds: list,
+        *,
+        k_compounds: int = 10,
+    ):
+        """
+        Query the fingerprint index with compounds, return top-k compounds per compound.
 
+        Parameters
+        ----------
+        compounds : list
+            Query compounds (expects list of SMILES strings).
+        k_compounds : int
+            Number of top compounds to return per query compound.
+        """
+        if self.fingerprint_index is None:
+            raise RuntimeError("FingerprintSparseIndex is not set. Build or load it before querying.")
+
+        # Compute fingerprints
+        fps = self.db.all_cdb.compute_fingerprints(
+            compounds,
+            count=False,
+            sparse=True,
+        )
+
+        results_all: List[List[Dict[str, Any]]] = []
+        for qi, fp in enumerate(fps):
+            # FingerprintSparseIndex.query returns list[(comp_id, similarity)]
+            hits = self.fingerprint_index.query(fp, k=k_compounds)
+            # convert to standard structure
+            one = []
+            for rk, (comp_id, score) in enumerate(hits, start=1):
+                one.append({"rank": rk, "comp_id": comp_id, "score": float(score)})
+            results_all.append(one)
+
+        return results_all
+ 
     def query_compounds_by_spectra(
         self,
         spectra: list[Spectrum],
@@ -192,7 +228,7 @@ class MS2QueryLibrary:
         if k_compounds > k_spectra:
             raise ValueError("k_compounds cannot be larger than k_spectra")
 
-        # Step1: Query spectral embeddings
+        # Query spectral embeddings
         results = self.query_spectra_by_spectra(spectra, k_spectra=k_spectra, ef=ef)
 
         # Pick k_compounds top compounds from the k_spectra hits (if possible)
@@ -219,14 +255,25 @@ class MS2QueryLibrary:
     def analogue_search(
         self,
         spectra: list[Spectrum],
+        *,
+        ef: Optional[int] = None,
         ):
         """
         Perform an analogue search for the given spectra.
         TODO: implement analogue search logic here.
         """
-        top_compounds = self.query_compounds_by_spectra(spectra)
+        # Query spectral embeddings (only top-1 spectra)
+        results = self.query_spectra_by_spectra(spectra, k_spectra=1, ef=ef)
+        spec_ids = results.spec_id.values
+
+        # Get compounds of all retrieved spectra
+        analogue_compounds = self.db.metadata_by_spec_ids([x for x in spec_ids]).set_index("spec_id")
+        top_compounds = self.query_compounds_by_compounds(analogue_compounds.smiles.tolist())
+
+        #top_compounds = self.query_compounds_by_spectra(spectra)
         # TODO: implement analogue search logic here
-        return top_compounds.drop_duplicates("query_ix")
+        #return top_compounds.drop_duplicates("query_ix")
+        return self.query_compounds_by_compounds
 
         
     # ----------------------------- helpers / optional glue -----------------------------
