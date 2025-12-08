@@ -323,28 +323,63 @@ class EmbeddingIndex(_BaseANN):
 
     def query(
         self,
-        vector: np.ndarray,
+        vectors: np.ndarray,
         k: int = 10,
         ef: Optional[int] = None,
-    ) -> List[Tuple[str, float]]:
+        num_threads: int = 0,
+    ) -> List[Tuple[str, float]] | List[List[Tuple[str, float]]]:
         """
         Query for k nearest neighbors.
 
-        Returns list of (spec_id, similarity) tuples.
+        Parameters
+        ----------
+        vectors : np.ndarray
+            Either a single vector of shape (dim,) or a batch of shape (N, dim).
+        k : int
+            Number of neighbors.
+        ef : Optional[int]
+            Optional per-query ef parameter for HNSW.
+        num_threads : int
+            Number of threads to use inside nmslib (0 = library default).
+
+        Returns
+        -------
+        Union[List[Tuple[str, float]], List[List[Tuple[str, float]]]]
+            - If a single vector is given, returns a list of (spec_id, similarity).
+            - If a batch is given, returns a list (per query) of such lists.
         """
         if self._index is None:
             raise RuntimeError("Index not built or loaded.")
 
-        v = np.asarray(vector, dtype=np.float32).reshape(1, -1)
-        if v.shape[1] != self.dim:
-            raise ValueError(f"Query must have dim={self.dim}")
+        X = np.asarray(vectors, dtype=np.float32)
+
+        single = False
+        if X.ndim == 1:
+            # Single query vector: (dim,) -> (1, dim)
+            if X.size != self.dim:
+                raise ValueError(f"Query must have dim={self.dim}")
+            X = X.reshape(1, -1)
+            single = True
+        elif X.ndim == 2:
+            if X.shape[1] != self.dim:
+                raise ValueError(f"Expected shape (N, {self.dim}), got {X.shape}")
+        else:
+            raise ValueError("vectors must be 1D or 2D array.")
 
         if ef is not None:
             self._index.setQueryTimeParams({"ef": ef})
 
-        idxs, dists = self._index.knnQueryBatch(v, k=k)[0]
-        sims = 1.0 - np.asarray(dists, dtype=np.float32)  # cosine distance -> similarity
-        return [(str(self._ids[i]), float(sims[j])) for j, i in enumerate(idxs)]
+        batch_results = self._index.knnQueryBatch(X, k=k, num_threads=num_threads)
+
+        all_out: List[List[Tuple[str, float]]] = []
+        for idxs, dists in batch_results:
+            idxs = np.asarray(idxs, dtype=np.int64)
+            dists = np.asarray(dists, dtype=np.float32)
+            sims = 1.0 - dists  # cosine distance -> similarity
+            out = [(str(self._ids[i]), float(s)) for i, s in zip(idxs, sims)]
+            all_out.append(out)
+
+        return all_out[0] if single else all_out
 
     def save_index(self, path_prefix: str) -> None:
         if self._index is None:
@@ -487,14 +522,14 @@ class FingerprintSparseIndex(_BaseANN):
         # Without re-ranking, return cosine similarities
         if not re_rank or self._csr is None or self._l1 is None:
             sims = 1.0 - dists
-            return [(int(self._comp_ids[i]), float(s)) for i, s in zip(idxs[:k], sims[:k])]
+            return [(self._comp_ids[i], float(s)) for i, s in zip(idxs[:k], sims[:k])]
 
         # Re-rank with exact Tanimoto
         Y = self._csr[idxs]
         tan = tanimoto_l1_query_vs_block(q, Y, sum1=float(q.sum()), sumsY=self._l1[idxs])
         order = np.argsort(-tan)[:k]
 
-        return [(int(self._comp_ids[idxs[i]]), float(tan[i])) for i in order]
+        return [(self._comp_ids[idxs[i]], float(tan[i])) for i in order]
 
     def _normalize_query(self, query_fp) -> sp.csr_matrix:
         """Convert query to single-row CSR and validate."""
@@ -602,10 +637,11 @@ class FingerprintSparseIndex(_BaseANN):
         if self._index is None:
             raise RuntimeError("Index not built.")
 
-        self._index.saveIndex(f"{path_prefix}.nmslib")
+        # Also save data so that loadIndex(..., load_data=True) works
+        self._index.saveIndex(f"{path_prefix}.nmslib", save_data=True)
         np.save(f"{path_prefix}.ids.npy", self._comp_ids)
 
-        meta = {**self._meta, "dim": self.dim, "space": self.space}
+        meta = {**self._meta, "dim": int(self.dim), "space": str(self.space)}
         with open(f"{path_prefix}.meta.json", "w") as f:
             json.dump(meta, f)
 
