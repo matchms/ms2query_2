@@ -31,7 +31,7 @@ matchms= ">=0.30.0"
 ms2deepscore= { git = "https://github.com/matchms/ms2deepscore.git", branch = "pytorch_update" }
 rdkit= ">2024.3.4"
 nmslib= ">=2.0.0"
-umap-learn= ">=0.57"
+umap-learn= ">=0.5.7"
 
 [tool.poetry.group.dev.dependencies]
 decorator = "^5.1.1"
