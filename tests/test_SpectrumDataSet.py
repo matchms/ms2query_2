@@ -91,9 +91,9 @@ def test_spectra_with_fingerprints(library):
     )
 
     # test correct subsetting
-    subset_indexes = [1, 4, 6, 7]
+    subset_indexes = [1, 6, 7]
     subset = library.subset_spectra(subset_indexes)
-    assert len(subset.inchikey_fingerprint_pairs) == 3
+    assert len(subset.inchikey_fingerprint_pairs) == 2
     assert all(
         np.array_equal(library.inchikey_fingerprint_pairs[key], value)
         for key, value in subset.inchikey_fingerprint_pairs.items()

@@ -108,6 +108,15 @@ class SpectraWithFingerprints(SpectrumSetBase):
         new_instance.inchikey_fingerprint_pairs = copy.copy(self.inchikey_fingerprint_pairs)
         return new_instance
 
+    def subset_spectra(self, spectrum_indexes) -> "SpectraWithFingerprints":
+        """Returns a new instance of a subset of the spectra"""
+        new_instance = super().subset_spectra(spectrum_indexes)
+        # Only keep the fingerprints for which we have inchikeys.
+        # Important note: This is not a deep copy!
+        # And the fingerprint is not reset (so it is not always actually matching the most common inchi)
+        new_instance.inchikey_fingerprint_pairs = {inchikey: self.inchikey_fingerprint_pairs[inchikey] for inchikey in new_instance.spectrum_indexes_per_inchikey.keys()}
+        return new_instance
+
 
 class SpectraWithMS2DeepScoreEmbeddings(SpectraWithFingerprints):
     def __init__(self, spectra: List[Spectrum], ms2deepscore_model: SiameseSpectralModel, **kwargs):
