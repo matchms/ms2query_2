@@ -204,8 +204,6 @@ class MS2QueryLibrary:
         # Compute fingerprints (sparse representation)
         fps = self.db.all_cdb.compute_fingerprints(
             compounds,
-            count=False,
-            sparse=True,
         )
 
         # Batched fingerprint ANN query
