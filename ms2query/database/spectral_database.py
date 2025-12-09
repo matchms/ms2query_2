@@ -57,10 +57,19 @@ def _normalize_metadata(md: Dict[str, Any], fields: Iterable[str]) -> Dict[str, 
 class SpectralDatabase:
     sqlite_path: str
     table: str = "spectra"
-    metadata_fields: List[str] = field(default_factory=lambda: [
-        "precursor_mz", "ionmode", "smiles", "inchikey", "inchi", "name",
-        "instrument_type", "adduct", "collision_energy"
-    ])
+    metadata_fields: List[str] = field(
+        default_factory=lambda: [
+            "precursor_mz",
+            "ionmode",
+            "smiles",
+            "inchikey",
+            "inchi",
+            "name",
+            "instrument_type",
+            "adduct",
+            "collision_energy",
+        ]
+    )
     spectrum_sum_normalization_for_embedding: bool = True
     _conn: sqlite3.Connection = field(init=False, repr=False)
     _ms2ds_model_path: Optional[str] = field(default=None, repr=False)
@@ -81,7 +90,8 @@ class SpectralDatabase:
 
         cur = self._conn.cursor()
         # Bulk-load speed PRAGMAs (safe for single-user/batch ingest)
-        cur.executescript("""
+        cur.executescript(
+            """
             PRAGMA journal_mode=WAL;
             PRAGMA synchronous=OFF;
             PRAGMA temp_store=MEMORY;
@@ -130,14 +140,14 @@ class SpectralDatabase:
         rows = cur.execute(f"SELECT spec_id FROM {self.table}").fetchall()
         return [str(row["spec_id"]) for row in rows]
 
-    def get_spectra_by_ids(self, specIDs: List[str]) -> List[Spectrum]:
-        """Retrieve full Spectrum objects for given specIDs (order preserved, missing IDs skipped)."""
+    def get_spectra_by_ids(self, spec_ids: List[str]) -> List[Spectrum]:
+        """Retrieve full Spectrum objects for given spec_ids (order preserved, missing IDs skipped)."""
         rows = self._fetch_rows_by_ids(
-            specIDs, cols="spec_id, mz_blob, intensity_blob, n_peaks, " + ", ".join(self.metadata_fields))
+            spec_ids, cols="spec_id, mz_blob, intensity_blob, n_peaks, " + ", ".join(self.metadata_fields))
         by_id = {row["spec_id"]: row for row in rows}
 
         result: List[Spectrum] = []
-        for sid in specIDs:
+        for sid in spec_ids:
             row = by_id.get(sid)
             if row is None:
                 continue
@@ -149,13 +159,19 @@ class SpectralDatabase:
             result.append(Spectrum(mz=mz, intensities=inten, metadata=md))
         return result
 
-    def get_fragments_by_ids(self, specIDs: List[str]) -> List[Tuple[np.ndarray, np.ndarray]]:
-        """Retrieve (mz, intensity) arrays for given specIDs (order preserved, missing IDs skipped)."""
-        rows = self._fetch_rows_by_ids(specIDs, cols="spec_id, mz_blob, intensity_blob, n_peaks")
+    def get_fragments_by_ids(self, spec_ids: List[str]) -> List[Tuple[np.ndarray, np.ndarray]]:
+        """
+        Retrieve (mz, intensity) arrays for given spec_ids.
+
+        Order is preserved with respect to `spec_ids`.
+        Missing IDs are skipped.
+        """
+        cols = "spec_id, mz_blob, intensity_blob, n_peaks"
+        rows = self._fetch_rows_by_ids(spec_ids, cols=cols)
         by_id = {row["spec_id"]: row for row in rows}
 
         out: List[Tuple[np.ndarray, np.ndarray]] = []
-        for sid in specIDs:
+        for sid in spec_ids:
             row = by_id.get(sid)
             if row is None:
                 continue
@@ -165,16 +181,34 @@ class SpectralDatabase:
             out.append((mz, inten))
         return out
 
-    def get_metadata_by_ids(self, specIDs: List[str]) -> pd.DataFrame:
-        """Retrieve metadata for given specIDs (order preserved)."""
+    def get_metadata_by_ids(self, spec_ids: List[str]) -> pd.DataFrame:
+        """
+        Retrieve metadata for given spec_ids.
+
+        Returns a DataFrame with **one row per requested spec_id** in the same
+        order as `spec_ids`. If a spec_id is not present in the database, a row
+        with that spec_id and metadata columns set to None/NaN is returned.
+        """
         cols = ["spec_id"] + self.metadata_fields
-        rows = self._fetch_rows_by_ids(specIDs, cols=", ".join(cols))
-        df = pd.DataFrame(rows, columns=cols)
-        if not df.empty:
-            order = {sid: i for i, sid in enumerate(specIDs)}
-            df["__order"] = df["spec_id"].map(order)
-            df = df.sort_values("__order").drop(columns="__order").reset_index(drop=True)
-        return df
+        if not spec_ids:
+            return pd.DataFrame(columns=cols)
+
+        rows = self._fetch_rows_by_ids(spec_ids, cols=", ".join(cols))
+        by_id = {row["spec_id"]: row for row in rows}
+
+        records: List[Dict[str, Any]] = []
+        for sid in spec_ids:
+            row = by_id.get(sid)
+            if row is None:
+                rec = {"spec_id": sid}
+                rec.update({k: None for k in self.metadata_fields})
+            else:
+                rec = {"spec_id": sid}
+                for k in self.metadata_fields:
+                    rec[k] = row[k]
+            records.append(rec)
+
+        return pd.DataFrame.from_records(records, columns=cols)
 
     def sql_query(self, query: str) -> pd.DataFrame:
         """Run a raw SQL SELECT and return a DataFrame."""
@@ -225,7 +259,6 @@ class SpectralDatabase:
         - Uses `matchms.Spectrum` objects reconstructed from the stored peaks & metadata.
         - Stores raw float32 vectors (no extra header) with their dimension `d`.
         """
-        # TODO: add batch_size to speed up?
         spectra_table = spectra_table or self.table
         self._ensure_schema()  # spectra schema
         self.ensure_embeddings_schema(embeddings_table)
@@ -254,7 +287,9 @@ class SpectralDatabase:
         model = self.load_ms2deepscore_model(model_path)
 
         inserted = 0
-        buf: List[Tuple[str, bytes, bytes, int, float, str, Optional[int]]] = []
+        buf: List[
+            Tuple[str, bytes, bytes, int, float, str, Optional[int]]
+        ] = []
         done_since_commit = 0
 
         def flush(batch) -> int:
@@ -265,24 +300,35 @@ class SpectralDatabase:
             for sid, mz_blob, it_blob, n_peaks, prec_mz, ionmode, charge in batch:
                 mz = _from_float32_bytes(mz_blob, int(n_peaks))
                 it = _from_float32_bytes(it_blob, int(n_peaks))
-                spectrum = Spectrum(mz=mz, intensities=it, metadata={
-                    "precursor_mz": float(prec_mz) if prec_mz is not None else None,
-                    "ionmode": ionmode,
-                    "charge": charge,
-                    "spec_id": sid,
-                })
+                spectrum = Spectrum(
+                    mz=mz,
+                    intensities=it,
+                    metadata={
+                        "precursor_mz": float(prec_mz) if prec_mz is not None else None,
+                        "ionmode": ionmode,
+                        "charge": charge,
+                        "spec_id": sid,
+                    },
+                )
                 specs.append(spectrum)
                 sids.append(sid)
 
             embeddings = compute_spectra_embeddings(
-                model, specs,
-                normalize_spectrum=self.spectrum_sum_normalization_for_embedding
-                )
+                model,
+                specs,
+                normalize_spectrum=self.spectrum_sum_normalization_for_embedding,
+            )
             dim = int(embeddings.shape[1])
-            q = f"INSERT OR REPLACE INTO {embeddings_table} (spec_id, d, vec) VALUES (?, ?, ?);"
+            q = (
+                f"INSERT OR REPLACE INTO {embeddings_table} "
+                f"(spec_id, d, vec) VALUES (?, ?, ?);"
+            )
             with self._conn:
                 for sid, embedding in zip(sids, embeddings):
-                    self._conn.execute(q, (sid, dim, sqlite3.Binary(_as_float32_bytes(embedding))))
+                    self._conn.execute(
+                        q,
+                        (sid, dim, sqlite3.Binary(_as_float32_bytes(embedding))),
+                    )
             return len(batch)
 
         while True:
@@ -360,13 +406,13 @@ class SpectralDatabase:
         return self._conn
     # ---------- internal ----------
 
-    def _fetch_rows_by_ids(self, specIDs: List[str], cols: str) -> List[sqlite3.Row]:
-        if not specIDs:
+    def _fetch_rows_by_ids(self, spec_ids: List[str], cols: str) -> List[sqlite3.Row]:
+        if not spec_ids:
             return []
-        placeholders = ",".join("?" for _ in specIDs)
+        placeholders = ",".join("?" for _ in spec_ids)
         sql = f"SELECT {cols} FROM {self.table} WHERE spec_id IN ({placeholders})"
         cur = self._conn.cursor()
-        return cur.execute(sql, specIDs).fetchall()
+        return cur.execute(sql, spec_ids).fetchall()
 
     def _ensure_schema(self):
         cur = self._conn.cursor()
