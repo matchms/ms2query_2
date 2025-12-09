@@ -113,6 +113,9 @@ class MS2QueryDatabase:
 
     def metadata_by_spec_ids(self, spec_ids: List[int]) -> pd.DataFrame:
         return self.ref_sdb.get_metadata_by_ids(spec_ids)
+    
+    def embeddings_by_spec_ids(self, spec_ids: List[int]):
+        return self.ref_sdb.get_embeddings(spec_ids=spec_ids)
 
     # ---- by comp_id (inchikey14) ----
 
@@ -128,6 +131,10 @@ class MS2QueryDatabase:
 
     def compound(self, comp_id: str) -> Optional[Dict[str, Any]]:
         return self.ref_cdb.get_compound(comp_id)
+    
+    def embeddings_by_comp_id(self, comp_id: str):
+        spec_ids = self.spec_ids_by_comp_id(comp_id)
+        return self.ref_sdb.get_embeddings(spec_ids=spec_ids)
 
 
     # -------------------------------- convenience SQL ------------------------------
