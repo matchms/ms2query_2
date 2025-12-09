@@ -185,8 +185,9 @@ class MS2QueryLibrary:
 
     def query_compounds_by_compounds(
         self,
-        compounds: Sequence[str],
         *,
+        smiles: Optional[List[str]] = None,
+        inchis: Optional[List[str]] = None,
         k_compounds: int = 10,
     ) -> List[List[Dict[str, Any]]]:
         """
@@ -194,8 +195,10 @@ class MS2QueryLibrary:
 
         Parameters
         ----------
-        compounds : Sequence[str]
-            Query compounds (expects list of SMILES strings).
+        smiles : Optional[List[str]], optional
+            List of SMILES strings, by default None
+        inchis : Optional[List[str]], optional
+            List of InChI strings, by default None
         k_compounds : int
             Number of top compounds to return per query compound.
         """
@@ -203,7 +206,8 @@ class MS2QueryLibrary:
 
         # Compute fingerprints (sparse representation)
         fps = self.db.all_cdb.compute_fingerprints(
-            compounds,
+            smiles=smiles,
+            inchis=inchis,
         )
 
         # Batched fingerprint ANN query

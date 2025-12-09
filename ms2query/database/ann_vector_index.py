@@ -727,7 +727,7 @@ class FingerprintSparseIndex(_BaseANN):
         if self._index is None:
             raise RuntimeError("Index not built.")
 
-        # Also save data so that loadIndex(..., load_data=True) works
+        # Also save data so that load_index(..., load_data=True) works
         self._index.saveIndex(f"{path_prefix}.nmslib", save_data=True)
         np.save(f"{path_prefix}.ids.npy", self._comp_ids)
 

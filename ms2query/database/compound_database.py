@@ -467,6 +467,15 @@ class CompoundDatabase:
         Does NOT write to the database.
         Provide exactly one of (smiles, inchis).
 
+        Parameters
+        ----------
+        smiles : Optional[List[str]], optional
+            List of SMILES strings, by default None
+        inchis : Optional[List[str]], optional
+            List of InChI strings, by default None
+        progress_bar : bool, optional
+            Whether to show a progress bar, by default False
+
         Returns the same shapes/types as compute_morgan_fingerprints:
           - dense: np.ndarray of shape (N, nbits)
           - sparse/binary: List[np.ndarray[uint32]]
