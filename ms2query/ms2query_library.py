@@ -352,7 +352,7 @@ class MS2QueryLibrary:
             normalized=True,
         )
 
-        # If DB returns nothing, keep the old API behaviour
+        # If DB returns nothing
         if X.size == 0:
             return [] if not return_dataframe else self._empty_result_df()
 

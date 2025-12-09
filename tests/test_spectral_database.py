@@ -1,4 +1,3 @@
-# test_spectral_database.py
 import numpy as np
 import pandas as pd
 import pytest
@@ -149,8 +148,68 @@ def test_missing_ids_handling(tmp_db, spectra_small):
 
     # Implementation skips missing IDs but preserves order of the ones that exist
     assert [s.metadata["spec_id"] for s in out_spectra] == [ids[1]]
-    assert list(out_meta["spec_id"]) == [ids[1]]
+
+    # get_metadata_by_ids now returns one row per requested ID
+    assert out_meta.shape[0] == 2
+    assert list(out_meta["spec_id"]) == req
+
+    # First row corresponds to missing ID: all metadata fields should be None/NaN
+    missing_row = out_meta.iloc[0]
+    assert missing_row["spec_id"] == req[0]
+    assert missing_row[tmp_db.metadata_fields].isna().all()
+
+    # Exactly one row has *any* metadata filled (the real spec_id)
+    non_empty_rows = out_meta.dropna(how="all", subset=tmp_db.metadata_fields)
+    assert non_empty_rows.shape[0] == 1
+    assert non_empty_rows.iloc[0]["spec_id"] == ids[1]
+
+    # get_fragments_by_ids still skips missing IDs
     assert len(out_frags) == 1
+
+
+def test_get_metadata_by_ids_all_ids_included_even_if_same_compound(tmp_db):
+    # Two spectra with different peaks but same compound-level metadata
+    s1 = make_spectrum(
+        [100, 200, 300],
+        [10, 20, 30],
+        precursor_mz=250.0,
+        ionmode="positive",
+        inchikey="SAME-IK",
+        smiles="C",
+        name="compound-1",
+    )
+    s2 = make_spectrum(
+        [110, 210, 310],
+        [5, 15, 25],
+        precursor_mz=260.0,
+        ionmode="positive",
+        inchikey="SAME-IK",  # same compound
+        smiles="C",
+        name="compound-1",
+    )
+
+    ids = tmp_db.add_spectra([s1, s2])
+
+    # Request both spec_ids; we expect two rows, one per ID, same order
+    df = tmp_db.get_metadata_by_ids(ids)
+
+    expected_cols = ["spec_id"] + tmp_db.metadata_fields
+    assert list(df.columns) == expected_cols
+    assert df.shape[0] == 2
+    assert list(df["spec_id"]) == ids
+
+    # Both rows should carry the same compound-level metadata (same inchikey/smiles)
+    assert df.loc[0, "inchikey"] == "SAME-IK"
+    assert df.loc[1, "inchikey"] == "SAME-IK"
+    assert df.loc[0, "smiles"] == "C"
+    assert df.loc[1, "smiles"] == "C"
+
+    # If name is stored, it should be consistent across rows (but may be None)
+    assert df.loc[0, "name"] == df.loc[1, "name"]
+
+    # The precursor m/z values differ per spectrum and should be preserved per ID
+    assert df.loc[0, "precursor_mz"] == pytest.approx(250.0)
+    assert df.loc[1, "precursor_mz"] == pytest.approx(260.0)
 
 
 def test_add_duplicates_are_ignored_and_ids_repeat(tmp_db, spectra_small):
