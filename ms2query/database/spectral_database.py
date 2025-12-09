@@ -303,7 +303,7 @@ class SpectralDatabase:
 
     def get_embeddings(
         self,
-        ids: Optional[List[str]] = None,
+        spec_ids: Optional[List[str]] = None,
         *,
         embeddings_table: str = "embeddings",
         normalized: bool = True,
@@ -314,13 +314,14 @@ class SpectralDatabase:
         If normalized=True, L2-normalize (recommended for cosine).
         """
         cur = self._conn.cursor()
-        if ids is None:
+        if spec_ids is None:
             cur.execute(f"SELECT spec_id, d, vec FROM {embeddings_table} ORDER BY spec_id ASC;")
         else:
-            ph = ",".join("?" for _ in ids)
+            placeholders = ",".join("?" for _ in spec_ids)
             cur.execute(
-                f"SELECT spec_id, d, vec FROM {embeddings_table} WHERE spec_id IN ({ph}) ORDER BY spec_id ASC;",
-                ids)
+                f"""SELECT spec_id, d, vec FROM {embeddings_table}
+                WHERE spec_id IN ({placeholders}) ORDER BY spec_id ASC;""",
+                spec_ids)
 
         sids: List[str] = []
         vecs: List[np.ndarray] = []

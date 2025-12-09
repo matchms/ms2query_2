@@ -346,8 +346,8 @@ class MS2QueryLibrary:
         self._ensure_embedding_index()
 
         # Pull precomputed embeddings from DB (already L2-normalized)
-        ids, X = self.db.ref_sdb.get_embeddings(
-            ids=spec_ids,
+        _, X = self.db.ref_sdb.get_embeddings(
+            spec_ids=spec_ids,
             embeddings_table="embeddings",
             normalized=True,
         )
