@@ -9,6 +9,29 @@ from tests.conftest import ms2deepscore_model, create_test_spectra
 import pytest
 
 
+def test_predict_using_closest_tanimoto():
+    """Only very basic test that the function runs and that the output is the right format"""
+    model = ms2deepscore_model()
+    library_spectra = SpectraWithMS2DeepScoreEmbeddings(create_test_spectra(nr_of_inchikeys=7), model)
+    test_spectra = SpectraWithMS2DeepScoreEmbeddings(create_test_spectra(1, nr_of_inchikeys=3), model)
+    predicted_inchikeys, scores = predict_using_closest_tanimoto(library_spectra, test_spectra, 3, 3)
+
+    assert isinstance(predicted_inchikeys, list)
+    assert len(predicted_inchikeys) == 3
+    assert isinstance(scores, list)
+    assert len(scores) == 3
+
+def test_predict_using_closest_tanimoto_single_spectrum():
+    """Only very basic test that the function runs and that the output is the right format"""
+    model = ms2deepscore_model()
+    library_spectra = SpectraWithMS2DeepScoreEmbeddings(create_test_spectra(nr_of_inchikeys=7), model)
+    test_spectra = SpectraWithMS2DeepScoreEmbeddings(create_test_spectra(1, nr_of_inchikeys=1), model)
+    predicted_inchikey, score = predict_using_closest_tanimoto_single_spectrum(library_spectra, test_spectra, 3, 3)
+
+    assert isinstance(predicted_inchikey, str)
+    assert len(predicted_inchikey) ==14
+    assert isinstance(score, float)
+
 def test_select_inchikeys_with_highest_ms2deepscore():
     test_spectra = create_test_spectra(nr_of_inchikeys=7)
     spectra = SpectraWithFingerprints(test_spectra)
