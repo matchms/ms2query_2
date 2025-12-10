@@ -3,10 +3,24 @@ import numpy as np
 from ms2query.benchmarking.SpectrumDataSet import SpectraWithMS2DeepScoreEmbeddings, SpectraWithFingerprints
 from ms2query.benchmarking.reference_methods.predict_using_closest_tanimoto import (
     predict_using_closest_tanimoto, predict_using_closest_tanimoto_single_spectrum,
-    get_average_predictions_for_closely_related_metabolites, get_inchikey_and_tanimoto_scores_for_top_k)
+    get_average_predictions_for_closely_related_metabolites, get_inchikey_and_tanimoto_scores_for_top_k,
+    select_inchikeys_with_highest_ms2deepscore)
 from tests.conftest import ms2deepscore_model, create_test_spectra
 import pytest
 
+
+def test_select_inchikeys_with_highest_ms2deepscore():
+    test_spectra = create_test_spectra(nr_of_inchikeys=7)
+    spectra = SpectraWithFingerprints(test_spectra)
+
+    ms2deepscores = np.zeros(len(test_spectra))
+    ms2deepscores[2] = 0.4
+    ms2deepscores[5] = 0.9
+    ms2deepscores[7] = 0.6
+    inchikeys_with_highest_ms2deepscore = select_inchikeys_with_highest_ms2deepscore(spectra, ms2deepscores, 3)
+    expected_inchikeys = list(spectra.spectrum_indexes_per_inchikey.keys())[:3]
+    assert set(expected_inchikeys) == set(inchikeys_with_highest_ms2deepscore)
+    print(inchikeys_with_highest_ms2deepscore)
 
 def test_get_average_predictions_for_closely_related_metabolites():
     test_spectra = create_test_spectra(nr_of_inchikeys=7)
