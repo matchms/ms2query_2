@@ -73,6 +73,18 @@ def get_inchikey_inchi_pairs(number_of_pairs):
             "C([C@@H]1[C@H]([C@@H]([C@H](C(O1)O)O)O)O)O",
             "Glucose",
         ),
+        (
+            "MWOOGOJBHIARFG-UHFFFAOYSA-N",
+            "InChI=1S/C8H8O3/c1-11-8-4-6(5-9)2-3-7(8)10/h2-5,10H,1H3",
+            "COC1=C(C=CC(=C1)C=O)O",
+            "vanillin"
+        ),
+        (
+            "ROHFNLRQFUQHCH-YFKPBYRVSA-N",
+            "InChI=1S/C6H13NO2/c1-4(2)3-5(7)6(8)9/h4-5H,3,7H2,1-2H3,(H,8,9)/t5-/m0/s1",
+            "CC(C)C[C@@H](C(=O)O)N",
+            "L-Leucine"
+        )
     )
     if number_of_pairs > len(inchikey_inchi_pairs):
         raise ValueError("Not enough example compounds, add some in conftest")
