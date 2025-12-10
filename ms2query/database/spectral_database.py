@@ -390,16 +390,6 @@ class SpectralDatabase:
             X = X / n
         return np.asarray(sids, dtype=object), X
 
-    def get_embedding_for_id(
-        self,
-        spec_id: str,
-        *,
-        embeddings_table: str = "embeddings",
-        normalized: bool = True,
-    ) -> Optional[np.ndarray]:
-        ids, X = self.get_embeddings([spec_id], embeddings_table=embeddings_table, normalized=normalized)
-        return X[0] if X.shape[0] else None
-
     # expose raw connection for ANN builders
     @property
     def connection(self) -> sqlite3.Connection:

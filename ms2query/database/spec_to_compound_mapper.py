@@ -27,6 +27,7 @@ class SpecToCompoundMap:
     sqlite_path: str
     table: str = "spec_to_comp"
     compound_table: str = "compounds"
+
     _conn: sqlite3.Connection = field(init=False, repr=False)
 
     def __post_init__(self):
@@ -83,6 +84,8 @@ class SpecToCompoundMap:
         except Exception:
             cur.execute("ROLLBACK")
             raise
+
+    # ---- getters: spec_id -> comp_id ----
 
     def get_comp_id_for_specs(self, spec_ids: List[str]) -> pd.DataFrame:
         """Return a DataFrame with columns [spec_id, comp_id] for the provided spec_ids."""

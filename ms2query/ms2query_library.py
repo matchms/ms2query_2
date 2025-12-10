@@ -26,8 +26,6 @@ class MS2QueryLibrary:
 
     Notes
     -----
-    * `model_path` is optional; provide it if you want on-the-fly embedding of ad-hoc spectra.
-      If omitted, you can still query using precomputed embeddings fetched from SQLite.
     * EmbeddingIndex must be built/loaded elsewhere (creation handled by setup workflow).
     """
     db: MS2QueryDatabase
@@ -221,7 +219,16 @@ class MS2QueryLibrary:
             ]
             results_all.append(one)
 
-        return results_all
+        # Convert to DataFrame
+        results_df = pd.DataFrame(
+            [
+                {"query_ix": qi, **item}
+                for qi, lst in enumerate(results_all)
+                for item in lst
+            ],
+            columns=["query_ix", "rank", "comp_id", "score"],
+        )
+        return results_df
  
     def query_compounds_by_spectra(
         self,
