@@ -8,6 +8,24 @@ from tests.conftest import ms2deepscore_model, create_test_spectra
 import pytest
 
 
+def test_get_average_predictions_for_closely_related_metabolites():
+    test_spectra = create_test_spectra(nr_of_inchikeys=7)
+    # Select different number per inchikey (only one for the first) to check that it is correctly weighted.
+    test_spectra = test_spectra.copy()[2:]
+    spectra = SpectraWithFingerprints(test_spectra)
+
+    inchikeys = list(spectra.inchikey_fingerprint_pairs.keys())[:3]
+    ms2deepscores = np.zeros(len(spectra.spectra))
+    ms2deepscores[0] = 0.8
+    ms2deepscores[[1,2,3]] = 0.6
+    ms2deepscores[4] = 0.6
+    ms2deepscores[5] = 0.8
+    ms2deepscores[6] = 0.7
+    # the average per inchikey is 0.8, 0.6, 0.7, so average overall should be 0.7
+    average_predicted_score = get_average_predictions_for_closely_related_metabolites(spectra,
+                                                                                      inchikeys,
+                                                                                      ms2deepscores)
+    assert np.allclose(average_predicted_score, np.array(0.7), atol=1e-5)
 
 @pytest.mark.parametrize(
     "k",
