@@ -1,0 +1,66 @@
+import numpy as np
+from ms2deepscore.vector_operations import cosine_similarity_matrix
+from typing import Tuple, List
+
+from ms2query.benchmarking.SpectrumDataSet import SpectraWithMS2DeepScoreEmbeddings
+from ms2query.metrics import generalized_tanimoto_similarity_matrix
+
+
+def predict_using_closest_tanimoto(
+    library_spectra: SpectraWithMS2DeepScoreEmbeddings, query_spectra: SpectraWithMS2DeepScoreEmbeddings,
+        nr_of_closest_inchikeys_to_select=10
+) -> Tuple[List[str], List[float]]:
+    """Predict best inchikey, by taking the average score over all spectra for the 10 closest related library inchikeys.
+    (simplified version of old MS2Query)
+    """
+    inchikeys_of_best_match = []
+    single_highest_score = []
+    for spectrum_idx in range(len(query_spectra.spectra)):
+        inchikey_of_best_match, score = predict_using_closest_tanimoto_single_spectrum(
+            library_spectra, query_spectra.subset_spectra([spectrum_idx]), nr_of_closest_inchikeys_to_select)
+        inchikeys_of_best_match.append(inchikey_of_best_match)
+        single_highest_score.append(score)
+    return inchikeys_of_best_match, single_highest_score
+
+
+def predict_using_closest_tanimoto_single_spectrum(spectra_with_embeddings, single_spectrum_with_embeddings,
+                                                   nr_of_closest_inchikeys_to_select) -> Tuple[str, float]:
+    if len(single_spectrum_with_embeddings.spectra) != 1:
+        raise ValueError("expected a single spectrum")
+    ms2deepscores = cosine_similarity_matrix(single_spectrum_with_embeddings.embeddings,
+                                             spectra_with_embeddings.embeddings)[0]
+    average_predicted_scores = {}
+    for inchikey, spectrum_indexes in spectra_with_embeddings.spectrum_indexes_per_inchikey.items():
+        all_ms2deepscores_for_inchikey = ms2deepscores[spectrum_indexes]
+        if max(all_ms2deepscores_for_inchikey) > 0.7:
+            average_predicted_score = get_average_predictions_for_closely_related_metabolites(
+                spectra_with_embeddings, inchikey, ms2deepscores, nr_of_closest_inchikeys_to_select)
+            average_predicted_scores[inchikey] = average_predicted_score
+
+    inchikey_with_highest_average_prediction, score = max(average_predicted_scores.items(), key=lambda item: item[1])
+    return inchikey_with_highest_average_prediction, score
+
+def get_average_predictions_for_closely_related_metabolites(spectra_with_embeddings, inchikey,
+                                                            all_ms2deepscores, nr_of_closest_inchikeys_to_select):
+    """Calculates the average ms2deepscore predictions for top k closest inchikeys"""
+    top_k_inchikeys, _ = get_inchikey_and_tanimoto_scores_for_top_k(
+        spectra_with_embeddings, inchikey,nr_of_closest_inchikeys_to_select)
+
+    average_predicted_scores = []
+    for top_inchikey in top_k_inchikeys:
+        matching_spectrum_indexes = spectra_with_embeddings.spectrum_indexes_per_inchikey[top_inchikey]
+        predicted_scores = all_ms2deepscores[matching_spectrum_indexes]
+        average_predicted_scores.append(predicted_scores.mean())
+    average_predicted_score = sum(average_predicted_scores) / len(average_predicted_scores)
+    return average_predicted_score
+
+def get_inchikey_and_tanimoto_scores_for_top_k(spectra: SpectraWithMS2DeepScoreEmbeddings, inchikey, k) -> tuple[list[str], np.ndarray]:
+    """For an inchikey in a library the top k highest tanimoto scores in the library are predicted (including itself)"""
+    library_fingerprints = np.vstack(list(spectra.inchikey_fingerprint_pairs.values()))
+    fingerprint_single_inchikey = np.vstack(list([spectra.inchikey_fingerprint_pairs[inchikey]]))
+    similarity_scores = generalized_tanimoto_similarity_matrix(fingerprint_single_inchikey, library_fingerprints)[0]
+    inchikey_indexes_of_top_k = np.argpartition(similarity_scores, -k)[-k:]
+    tanimoto_scores_for_top_k = similarity_scores[inchikey_indexes_of_top_k]
+    all_inchikeys = list(spectra.inchikey_fingerprint_pairs.keys())
+    top_inchikeys = [all_inchikeys[inchikey_index] for inchikey_index in inchikey_indexes_of_top_k]
+    return top_inchikeys, tanimoto_scores_for_top_k
