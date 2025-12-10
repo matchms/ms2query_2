@@ -1,7 +1,7 @@
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 import pandas as pd
 from ms2query.data_processing import inchikey14_from_full
 from ms2query.database import CompoundDatabase
@@ -11,10 +11,11 @@ from ms2query.database import CompoundDatabase
 # Mapping: spectrum <-> compound (spec_to_comp)
 # ==================================================
 
+
 @dataclass
 class SpecToCompoundMap:
-    """This class manages the mapping between spectrum IDs and compound IDs.
-    
+    """Manage the mapping between spectrum IDs and compound IDs (inchikey14).
+
     Attributes
     ----------
     sqlite_path : str
@@ -36,50 +37,61 @@ class SpecToCompoundMap:
         self._conn.row_factory = sqlite3.Row
         self._ensure_schema()
 
-    def close(self):
+    # ---------------- lifecycle ----------------
+
+    def close(self) -> None:
         try:
             self._conn.close()
         except Exception:
             pass
 
-    def _ensure_schema(self):
+    # ---------------- schema ----------------
+
+    def _ensure_schema(self) -> None:
         cur = self._conn.cursor()
-        # No strict FK enforcement (SpectralDatabase may have been created without FK pragma),
-        # here: index both sides for fast lookup.
-        cur.executescript(f"""
+        # No strict FK enforcement; index both sides for fast lookup.
+        cur.executescript(
+            f"""
             CREATE TABLE IF NOT EXISTS {self.table}(
                 spec_id TEXT NOT NULL,
-                comp_id TEXT    NOT NULL,
+                comp_id TEXT NOT NULL,
                 PRIMARY KEY (spec_id),
                 CHECK (length(comp_id) = 14)
             );
-            CREATE INDEX IF NOT EXISTS idx_spec_to_comp_comp ON {self.table}(comp_id);
-        """)
+            CREATE INDEX IF NOT EXISTS idx_{self.table}_comp ON {self.table}(comp_id);
+        """
+        )
         self._conn.commit()
 
-    # ---------- API ----------
+    # ---------------- API ----------------
 
-    def link(self, spec_id: str, comp_id: str):
-        """Insert or replace a single mapping."""
+    def link(self, spec_id: str, comp_id: str) -> None:
+        """Insert or replace a single mapping (spec_id -> comp_id)."""
         if not comp_id or len(comp_id) != 14:
             raise ValueError("comp_id must be inchikey14 (14 characters).")
-        self._conn.execute(f"""
+        self._conn.execute(
+            f"""
             INSERT INTO {self.table} (spec_id, comp_id)
             VALUES (?, ?)
-            ON CONFLICT(spec_id) DO UPDATE SET comp_id=excluded.comp_id
-        """, (spec_id, comp_id))
+            ON CONFLICT(spec_id) DO UPDATE SET comp_id = excluded.comp_id
+            """,
+            (spec_id, comp_id),
+        )
         self._conn.commit()
 
-    def link_many(self, pairs: Iterable[Tuple[int, str]]):
-        """Bulk link (spec_id, comp_id)."""
+    def link_many(self, pairs: Iterable[Tuple[str, str]]) -> None:
+        """Bulk link (spec_id, comp_id) pairs."""
         cur = self._conn.cursor()
         cur.execute("BEGIN")
         try:
-            cur.executemany(f"""
+            cur.executemany(
+                f"""
                 INSERT INTO {self.table} (spec_id, comp_id)
                 VALUES (?, ?)
-                ON CONFLICT(spec_id) DO UPDATE SET comp_id=excluded.comp_id
-            """, list(pairs))
+                ON CONFLICT(spec_id) DO UPDATE SET comp_id = excluded.comp_id
+                """,
+                list(pairs),
+            )
             cur.execute("COMMIT")
         except Exception:
             cur.execute("ROLLBACK")
@@ -87,31 +99,94 @@ class SpecToCompoundMap:
 
     # ---- getters: spec_id -> comp_id ----
 
-    def get_comp_id_for_specs(self, spec_ids: List[str]) -> pd.DataFrame:
-        """Return a DataFrame with columns [spec_id, comp_id] for the provided spec_ids."""
+    def get_comp_id_for_spec(self, spec_id: str) -> Optional[str]:
+        """
+        Return the comp_id for a single spec_id, or None if not mapped.
+        """
+        df = self.get_comp_id_for_specs([spec_id])
+        if df.empty:
+            return None
+        val = df.loc[0, "comp_id"]
+        return None if pd.isna(val) else str(val)
+
+    def get_comp_id_for_specs(self, spec_ids: Sequence[str]) -> pd.DataFrame:
+        """
+        Return a DataFrame with columns ['spec_id', 'comp_id'] for the provided spec_ids.
+
+        Behaviour
+        ---------
+        - Only returns rows for spec_ids that actually have a mapping.
+        - spec_id values come from the database (TEXT → strings).
+        - The result may have fewer rows than requested.
+        """
+        cols = ["spec_id", "comp_id"]
         if not spec_ids:
-            return pd.DataFrame(columns=["spec_id", "comp_id"])
+            return pd.DataFrame(columns=cols)
+
         placeholders = ",".join("?" * len(spec_ids))
         rows = self._conn.execute(
-            f"SELECT spec_id, comp_id FROM {self.table} WHERE spec_id IN ({placeholders})",
-            spec_ids
+            f"""
+            SELECT spec_id, comp_id
+            FROM {self.table}
+            WHERE spec_id IN ({placeholders})
+            """,
+            list(spec_ids),
         ).fetchall()
-        return pd.DataFrame(rows, columns=["spec_id", "comp_id"])
+
+        # rows already have the correct types from SQLite (TEXT for both columns)
+        return pd.DataFrame(rows, columns=cols)
+
+    # ---- getters: comp_id -> spec_id(s) ----
 
     def get_specs_for_comp(self, comp_id: str) -> List[str]:
-        """Return list of spec_ids for a given comp_id."""
-        rows = self._conn.execute(f"SELECT spec_id FROM {self.table} WHERE comp_id = ?", (comp_id,)).fetchall()
-        return [r[0] for r in rows]
+        """
+        Return list of spec_ids (as strings) for a single comp_id.
+        """
+        rows = self._conn.execute(
+            f"SELECT spec_id FROM {self.table} WHERE comp_id = ?",
+            (comp_id,),
+        ).fetchall()
+        return [str(r[0]) for r in rows]
+
+    def get_specs_for_comps(self, comp_ids: Sequence[str]) -> pd.DataFrame:
+        """
+        Return a DataFrame with columns ['comp_id', 'spec_id'] for the given comp_ids.
+
+        Behaviour
+        ---------
+        - For each comp_id, all mapped spec_ids are returned (1:N).
+        - Order of returned rows is determined by the underlying query.
+        - If a comp_id has no spectra, it will not appear in the result.
+        """
+        cols = ["comp_id", "spec_id"]
+        if not comp_ids:
+            return pd.DataFrame(columns=cols)
+
+        placeholders = ",".join("?" * len(comp_ids))
+        rows = self._conn.execute(
+            f"""
+            SELECT comp_id, spec_id
+            FROM {self.table}
+            WHERE comp_id IN ({placeholders})
+            """,
+            list(comp_ids),
+        ).fetchall()
+        return pd.DataFrame(rows, columns=cols)
+
+    # ---- misc ----
 
     def get_all_mappings(self) -> pd.DataFrame:
         """Return all spec_id <-> comp_id mappings as a DataFrame."""
-        rows = self._conn.execute(f"SELECT spec_id, comp_id FROM {self.table}").fetchall()
+        rows = self._conn.execute(
+            f"SELECT spec_id, comp_id FROM {self.table}"
+        ).fetchall()
         return pd.DataFrame(rows, columns=["spec_id", "comp_id"])
 
 
 # ==================================================
 # Integrations with SpectralDatabase
 # ==================================================
+
 
 def map_from_spectraldb_metadata(
     spectral_db_sqlite_path: str,
@@ -121,15 +196,17 @@ def map_from_spectraldb_metadata(
     compound_table: str = "compounds",
     mapping_table: str = "spec_to_comp",
     *,
-    create_missing_compounds: bool = True
+    create_missing_compounds: bool = True,
 ) -> Tuple[int, int]:
     """
     Read spectra metadata (expects 'inchikey' in metadata), create comp_id (inchikey14),
     populate spec_to_comp, and optionally upsert minimal compounds.
 
-    Returns: (n_mapped, n_new_compounds)
+    Returns
+    -------
+    (n_mapped, n_new_compounds)
     """
-    # We do not import the class to avoid circular imports; use sqlite directly.
+    # We do not import the SpectralDatabase class to avoid circular imports; use sqlite directly.
     s_conn = sqlite3.connect(spectral_db_sqlite_path)
     s_conn.row_factory = sqlite3.Row
 
@@ -141,13 +218,20 @@ def map_from_spectraldb_metadata(
 
     # Discover which columns exist in the spectra table
     cols = {r[1] for r in s_conn.execute(f"PRAGMA table_info({spectra_table})").fetchall()}
-    want = ["spec_id", "inchikey", "smiles", "inchi", "classyfire_class", "classyfire_superclass"]
+    want = [
+        "spec_id",
+        "inchikey",
+        "smiles",
+        "inchi",
+        "classyfire_class",
+        "classyfire_superclass",
+    ]
     have = [c for c in want if c in cols]
     select_cols = ", ".join(have)
 
     rows = s_conn.execute(f"SELECT {select_cols} FROM {spectra_table}").fetchall()
 
-    to_link: List[Tuple[int, str]] = []
+    to_link: List[Tuple[str, str]] = []
     new_comp_rows: List[Dict[str, Any]] = []
 
     for r in rows:
@@ -156,20 +240,26 @@ def map_from_spectraldb_metadata(
         ik_full = r.get("inchikey")
         if not ik_full:
             continue
+
         comp_id = inchikey14_from_full(ik_full)
         if not comp_id:
             continue
-        to_link.append((spec_id, comp_id))
+
+        # spec_id may be int in the spectra table; mapping expects TEXT, but
+        # SQLite will happily store the string representation.
+        to_link.append((str(spec_id), comp_id))
 
         if create_missing_compounds:
-            new_comp_rows.append({
-                "smiles": r.get("smiles"),
-                "inchi": r.get("inchi"),
-                "inchikey": ik_full,
-                "classyfire_class": r.get("classyfire_class"),
-                "classyfire_superclass": r.get("classyfire_superclass"),
-                "fingerprint": None,  # backfill later
-            })
+            new_comp_rows.append(
+                {
+                    "smiles": r.get("smiles"),
+                    "inchi": r.get("inchi"),
+                    "inchikey": ik_full,
+                    "classyfire_class": r.get("classyfire_class"),
+                    "classyfire_superclass": r.get("classyfire_superclass"),
+                    "fingerprint": None,  # backfill later
+                }
+            )
 
     # Bulk linking
     if to_link:
@@ -178,7 +268,7 @@ def map_from_spectraldb_metadata(
     # Upsert compounds
     n_new_compounds = 0
     if create_missing_compounds and new_comp_rows:
-        # Deduplicate by comp_id to avoid redundant upserts
+        # Deduplicate by comp_id (inchikey14) to avoid redundant upserts
         seen: set[str] = set()
         dedup_rows: List[Dict[str, Any]] = []
         for r in new_comp_rows:
@@ -186,9 +276,10 @@ def map_from_spectraldb_metadata(
             if cid and cid not in seen:
                 seen.add(cid)
                 dedup_rows.append(r)
+
         before = compdb.sql_query(f"SELECT COUNT(*) AS n FROM {compound_table}")["n"].iloc[0]
         compdb.upsert_many(dedup_rows)
-        after  = compdb.sql_query(f"SELECT COUNT(*) AS n FROM {compound_table}")["n"].iloc[0]
+        after = compdb.sql_query(f"SELECT COUNT(*) AS n FROM {compound_table}")["n"].iloc[0]
         n_new_compounds = int(after - before)
 
     n_mapped = len(to_link)
@@ -205,41 +296,61 @@ def get_unique_compounds_from_spectraldb(
     spectral_db_sqlite_path: str,
     spectra_table: str = "spectra",
     external_meta: Optional[pd.DataFrame] = None,
-    external_key_col: str = "inchikey14"
+    external_key_col: str = "inchikey14",
 ) -> pd.DataFrame:
     """
-    Return a DataFrame of unique compounds present in the spectral DB, inferred via inchikey → inchikey14.
-    Columns: inchikey14, inchikey (full), n_spectra. If `external_meta` is provided,
-    it will be left-joined on `external_key_col` (default 'inchikey14').
+    Return a DataFrame of unique compounds present in the spectral DB, inferred via
+    inchikey → inchikey14.
+
+    Columns (first three):
+      - inchikey14
+      - n_spectra
+      - inchikey (full)
+
+    If `external_meta` is provided, it is left-joined on `external_key_col`
+    (default: 'inchikey14').
     """
     conn = sqlite3.connect(spectral_db_sqlite_path)
     conn.row_factory = sqlite3.Row
 
-    # pull spec_id + inchikey from spectra
+    # Pull spec_id + inchikey from spectra
     df = pd.read_sql_query(f"SELECT spec_id, inchikey FROM {spectra_table}", conn)
     conn.close()
 
     if df.empty:
-        base = pd.DataFrame(columns=["inchikey14", "inchikey", "n_spectra"])
+        base = pd.DataFrame(columns=["inchikey14", "n_spectra", "inchikey"])
         if external_meta is not None:
-            return base.merge(external_meta, how="left", left_on="inchikey14", right_on=external_key_col)
+            return base.merge(
+                external_meta,
+                how="left",
+                left_on="inchikey14",
+                right_on=external_key_col,
+            )
         return base
 
     # Compute inchikey14
     ik14 = df["inchikey"].fillna("").map(inchikey14_from_full)
     df["inchikey14"] = ik14
 
-    # Aggregate
+    # Aggregate: order of columns is important for tests:
+    # ["inchikey14", "n_spectra", "inchikey"]
     agg = (
         df.dropna(subset=["inchikey14"])
-          .groupby(["inchikey14"], as_index=False)
-          .agg(n_spectra=("spec_id", "count"),
-               inchikey=("inchikey", "first"))  # first full key seen
+        .groupby(["inchikey14"], as_index=False)
+        .agg(
+            n_spectra=("spec_id", "count"),
+            inchikey=("inchikey", "first"),  # first full key seen
+        )
     )
 
     # Optional join with external meta
     if external_meta is not None and not external_meta.empty:
-        agg = agg.merge(external_meta, how="left", left_on="inchikey14", right_on=external_key_col)
+        agg = agg.merge(
+            external_meta,
+            how="left",
+            left_on="inchikey14",
+            right_on=external_key_col,
+        )
 
     # Order by prevalence
     agg = agg.sort_values("n_spectra", ascending=False).reset_index(drop=True)
