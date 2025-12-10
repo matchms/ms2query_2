@@ -8,7 +8,8 @@ from ms2query.metrics import generalized_tanimoto_similarity_matrix
 
 def predict_using_closest_tanimoto(
     library_spectra: SpectraWithMS2DeepScoreEmbeddings, query_spectra: SpectraWithMS2DeepScoreEmbeddings,
-        nr_of_closest_inchikeys_to_select=10
+        nr_of_closest_inchikeys_to_select=10,
+        nr_of_inchikeys_with_highest_ms2deepscore_to_select=100
 ) -> Tuple[List[str], List[float]]:
     """Predict best inchikey, by taking the average score over all spectra for the 10 closest related library inchikeys.
     (simplified version of old MS2Query)
@@ -17,7 +18,8 @@ def predict_using_closest_tanimoto(
     highest_scores = []
     for spectrum_idx in range(len(query_spectra.spectra)):
         inchikey_of_best_match, score = predict_using_closest_tanimoto_single_spectrum(
-            library_spectra, query_spectra.subset_spectra([spectrum_idx]), nr_of_closest_inchikeys_to_select)
+            library_spectra, query_spectra.subset_spectra([spectrum_idx]),
+            nr_of_closest_inchikeys_to_select, nr_of_inchikeys_with_highest_ms2deepscore_to_select)
         inchikeys_of_best_match.append(inchikey_of_best_match)
         highest_scores.append(score)
     return inchikeys_of_best_match, highest_scores
