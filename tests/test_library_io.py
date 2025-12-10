@@ -56,7 +56,7 @@ def test_create_and_load_library(tmp_path: Path):
     ms2query_db = lib.db
 
     # Metadata query by compound id (expected shape from your snippet)
-    df_meta = ms2query_db.metadata_by_comp_id(TEST_COMP_ID)
+    df_meta = ms2query_db.metadata_by_comp_ids([TEST_COMP_ID])
     assert tuple(df_meta.shape) == EXPECTED_METADATA_SHAPE
 
     # Metadata fields presence both in db wrapper and in returned dataframe

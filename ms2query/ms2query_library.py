@@ -293,7 +293,6 @@ class MS2QueryLibrary:
         self,
         spectra: Union[Spectrum, Sequence[Spectrum]],
         *,
-        k_spectra: int = 1,
         k_compounds: int = 10,
         ef: Optional[int] = None,
     ):
@@ -307,7 +306,7 @@ class MS2QueryLibrary:
         """
         # Step 1: top-k_spectra per query
         spec_hits = self.query_spectra_by_spectra(
-            spectra, k_spectra=k_spectra, ef=ef
+            spectra, k_spectra=1, ef=ef
         )  # DataFrame
         if spec_hits.empty:
             return []
