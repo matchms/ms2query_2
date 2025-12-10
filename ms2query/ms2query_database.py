@@ -1,6 +1,7 @@
 import sqlite3
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
+import numpy as np
 import pandas as pd
 from ms2query.data_processing import inchikey14_from_full
 from ms2query.database import (
@@ -13,6 +14,7 @@ from ms2query.database import (
 
 # ================================ public wrapper ==============================
 
+
 @dataclass
 class MS2QueryDatabase:
     """Wrapper class as main hub/glue between the different MS2Query database elements.
@@ -23,17 +25,26 @@ class MS2QueryDatabase:
     * Provide one-stop creation from (already processed!) `matchms.Spectrum` objects.
     * Offer ergonomic retrievals by `spec_id`, `comp_id` (inchikey14).
     * Keep *types and table access paths* in one place.
-    
     """
 
     sqlite_path: str
     ref_spectra_table: str = "spectra"
     ref_compound_table: str = "compounds"
     non_annotated_compound_table: str = "compounds_all"
-    metadata_fields: List[str] = field(default_factory=lambda: [
-        "precursor_mz", "ionmode", "smiles", "inchikey", "inchi", "name",
-        "charge", "instrument_type", "adduct", "collision_energy"
-    ])
+    metadata_fields: List[str] = field(
+        default_factory=lambda: [
+            "precursor_mz",
+            "ionmode",
+            "smiles",
+            "inchikey",
+            "inchi",
+            "name",
+            "charge",
+            "instrument_type",
+            "adduct",
+            "collision_energy",
+        ]
+    )
 
     # component singletons
     ref_sdb: SpectralDatabase = field(init=False)
@@ -43,12 +54,18 @@ class MS2QueryDatabase:
 
     def __post_init__(self):
         # Initialize components (each manages its own connection)
-        self.ref_sdb = SpectralDatabase(self.sqlite_path, table=self.ref_spectra_table,
-                                    metadata_fields=self.metadata_fields)
+        self.ref_sdb = SpectralDatabase(
+            self.sqlite_path,
+            table=self.ref_spectra_table,
+            metadata_fields=self.metadata_fields,
+        )
         self.ref_cdb = CompoundDatabase(self.sqlite_path, table=self.ref_compound_table)
-        self.all_cdb = CompoundDatabase(self.sqlite_path, table=self.non_annotated_compound_table)
-        self.mapper = SpecToCompoundMap(self.sqlite_path, compound_table=self.ref_compound_table)
-
+        self.all_cdb = CompoundDatabase(
+            self.sqlite_path, table=self.non_annotated_compound_table
+        )
+        self.mapper = SpecToCompoundMap(
+            self.sqlite_path, compound_table=self.ref_compound_table
+        )
 
     # ----------------------------- creation pipeline -----------------------------
 
@@ -63,14 +80,17 @@ class MS2QueryDatabase:
 
         Parameters
         ----------
-        spectra: List[matchms.Spectrum]
+        spectra : List[matchms.Spectrum]
             List of matchms Spectrum objects to be inserted into the database.
-        map_compounds: bool, default=True
+        map_compounds : bool, default=True
             Whether to map spectra to compounds based on metadata InChIKeys.
-        create_missing_compounds: bool, default=True
+        create_missing_compounds : bool, default=True
             Whether to create compound entries for spectra that do not have a matching compound yet.
 
-        Returns counts: {"n_inserted_spectra": int, "n_mapped": int, "n_new_compounds": int}
+        Returns
+        -------
+        dict
+            Counts: {"n_inserted_spectra": int, "n_mapped": int, "n_new_compounds": int}
         """
         spec_ids = self.ref_sdb.add_spectra(spectra)
         n_mapped = 0
@@ -90,13 +110,13 @@ class MS2QueryDatabase:
             "n_mapped": int(n_mapped),
             "n_new_compounds": int(n_new),
         }
-    
-    def add_second_compound_database(self, df):
+
+    def add_second_compound_database(self, df: pd.DataFrame) -> None:
         """Add an additional 'all compound' database without need for spectral data.
 
         Parameters
         ----------
-        df: pd.DataFrame
+        df : pd.DataFrame
             DataFrame containing inchikey and other relevant compound information.
             Should at least contain smiles or inchi.
         """
@@ -105,37 +125,91 @@ class MS2QueryDatabase:
     # --------------------------------- retrievals --------------------------------
     # ---- by spec_id ----
 
-    def spectra_by_spec_ids(self, spec_ids: List[int]):
+    def spectra_by_spec_ids(self, spec_ids: Sequence[str]):
+        """Return list[Spectrum] for the given spec_ids."""
+        return self.ref_sdb.get_spectra_by_ids(list(spec_ids))
+
+    def fragments_by_spec_ids(self, spec_ids: Sequence[str]):
+        """Return list[(mz, intensity)] for the given spec_ids."""
+        return self.ref_sdb.get_fragments_by_ids(list(spec_ids))
+
+    def metadata_by_spec_ids(self, spec_ids: Sequence[str]) -> pd.DataFrame:
+        """Return metadata DataFrame for the given spec_ids."""
+        return self.ref_sdb.get_metadata_by_ids(list(spec_ids))
+
+    def embeddings_by_spec_ids(self, spec_ids: Sequence[str]):
+        """Return (ids, embeddings) tuple for the given spec_ids."""
+        return self.ref_sdb.get_embeddings(spec_ids=list(spec_ids))
+
+    # ---- by comp_ids (inchikey14) ----
+
+    def spec_ids_by_comp_ids(self, comp_ids: Sequence[str]) -> pd.DataFrame:
+        """
+        Return mapping of comp_ids -> spec_ids.
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns: ['comp_id', 'spec_id'].
+            One row per existing mapping (1:N).
+        """
+        return self.mapper.get_specs_for_comps(list(comp_ids))
+
+    def spectra_by_comp_ids(self, comp_ids: Sequence[str]):
+        """
+        Return all spectra mapped to any of the given comp_ids.
+
+        Notes
+        -----
+        * The order of spectra is determined by the underlying `get_spectra_by_ids`
+          implementation and mapping table.
+        * If you need to know which comp_id each spectrum belongs to, combine this
+          with `spec_ids_by_comp_ids`.
+        """
+        df_map = self.mapper.get_specs_for_comps(list(comp_ids))
+        if df_map.empty:
+            return []
+        spec_ids = df_map["spec_id"].tolist()
         return self.ref_sdb.get_spectra_by_ids(spec_ids)
 
-    def fragments_by_spec_ids(self, spec_ids: List[int]):
-        return self.ref_sdb.get_fragments_by_ids(spec_ids)
+    def metadata_by_comp_ids(self, comp_ids: Sequence[str]) -> pd.DataFrame:
+        """
+        Return metadata for all spectra mapped to the given comp_ids.
 
-    def metadata_by_spec_ids(self, spec_ids: List[int]) -> pd.DataFrame:
-        return self.ref_sdb.get_metadata_by_ids(spec_ids)
-    
-    def embeddings_by_spec_ids(self, spec_ids: List[int]):
+        Returns
+        -------
+        pd.DataFrame
+            Columns: ['comp_id', 'spec_id', ...metadata_fields...]
+        """
+        df_map = self.mapper.get_specs_for_comps(list(comp_ids))
+        if df_map.empty:
+            cols = ["comp_id", "spec_id"] + self.metadata_fields
+            return pd.DataFrame(columns=cols)
+
+        meta = self.ref_sdb.get_metadata_by_ids(df_map["spec_id"].tolist())
+        # meta: spec_id + metadata_fields
+        out = df_map.merge(meta, on="spec_id", how="inner")
+        # Ensure column order: comp_id, spec_id, metadata...
+        return out[["comp_id", "spec_id"] + self.metadata_fields]
+
+    def embeddings_by_comp_ids(self, comp_ids: Sequence[str]):
+        """
+        Return embeddings for all spectra mapped to the given comp_ids.
+
+        Returns
+        -------
+        (np.ndarray, np.ndarray)
+            (spec_ids, embeddings) as returned by SpectralDatabase.get_embeddings.
+        """
+        df_map = self.mapper.get_specs_for_comps(list(comp_ids))
+        if df_map.empty:
+            # Mirror SpectralDatabase.get_embeddings empty contract
+            return (
+                np.empty((0,), dtype=str),
+                np.empty((0, 0), dtype=np.float32),
+            )
+        spec_ids = df_map["spec_id"].tolist()
         return self.ref_sdb.get_embeddings(spec_ids=spec_ids)
-
-    # ---- by comp_id (inchikey14) ----
-
-    def spec_ids_by_comp_id(self, comp_id: str) -> List[int]:
-        return self.mapper.get_specs_for_comp(comp_id)
-
-    def spectra_by_comp_id(self, comp_id: str):
-        return self.ref_sdb.get_spectra_by_ids(self.spec_ids_by_comp_id(comp_id))
-
-    def metadata_by_comp_id(self, comp_id: str) -> pd.DataFrame:
-        spec_ids = self.spec_ids_by_comp_id(comp_id)
-        return self.ref_sdb.get_metadata_by_ids(spec_ids)
-
-    def compound(self, comp_id: str) -> Optional[Dict[str, Any]]:
-        return self.ref_cdb.get_compound(comp_id)
-    
-    def embeddings_by_comp_id(self, comp_id: str):
-        spec_ids = self.spec_ids_by_comp_id(comp_id)
-        return self.ref_sdb.get_embeddings(spec_ids=spec_ids)
-
 
     # -------------------------------- convenience SQL ------------------------------
 
@@ -148,19 +222,13 @@ class MS2QueryDatabase:
     # ----------------------------------- utilities ---------------------------------
 
     def inchikey_to_comp_id(self, inchikey_full: str) -> Optional[str]:
+        """Convert a full InChIKey to the 14-character comp_id (inchikey14)."""
         return inchikey14_from_full(inchikey_full)
 
-    def close(self):
-        # Close component connections
-        try:
-            self.ref_sdb.close()
-        except Exception:
-            pass
-        try:
-            self.ref_cdb.close()
-        except Exception:
-            pass
-        try:
-            self.mapper.close()
-        except Exception:
-            pass
+    def close(self) -> None:
+        """Close all component connections."""
+        for obj in (self.ref_sdb, self.ref_cdb, self.all_cdb, self.mapper):
+            try:
+                obj.close()
+            except Exception:
+                pass
