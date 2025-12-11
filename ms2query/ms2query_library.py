@@ -4,8 +4,9 @@ import numpy as np
 import pandas as pd
 from matchms import Spectrum
 from ms2deepscore.models import load_model as _ms2ds_load_model
+from sklearn.metrics.pairwise import cosine_similarity
 from ms2query import MS2QueryDatabase
-from ms2query.data_processing import compute_spectra_embeddings
+from ms2query.data_processing import compute_spectra_embeddings, merge_fingerprints
 from ms2query.database import EmbeddingIndex, FingerprintSparseIndex
 
 
@@ -31,6 +32,7 @@ class MS2QueryLibrary:
     db: MS2QueryDatabase
     embedding_index: Optional[EmbeddingIndex] = None
     fingerprint_index: Optional[FingerprintSparseIndex] = None  # for now: reference spectra only
+    large_scale_fingerprint_index: Optional[FingerprintSparseIndex] = None  # for large body of reference compounds
     model_path: Optional[str] = None
 
     # internal: whether to apply spectrum normalization (sum=1) before embedding
@@ -319,13 +321,51 @@ class MS2QueryLibrary:
             .set_index("spec_id")
         )
 
-        smiles = analogue_compounds["smiles"].tolist()
+        analogue_smiles = analogue_compounds["smiles"].tolist()
 
         # Step 3: fingerprint-based compound search
         top_compounds = self.query_compounds_by_compounds(
-            smiles, k_compounds=k_compounds
-        )
-        return top_compounds
+            smiles=analogue_smiles
+        ).set_index("query_ix")
+
+        # Step 4: for each query, pick the best matching spectrum among all spectra
+        fingerprints_merged = []
+        weighted_average_scores = []
+        embeddings_queries = self.compute_embeddings(spectra)  # TODO: this is now done twice! in step 1 and here
+        for i in range(len(analogue_smiles)):
+            comp_ids = top_compounds.loc[i].comp_id.to_list()
+
+            # Get chemically closest compounds
+            spec_ids_all = []
+            spec_ids_selected = []
+            embeddings_selected = []
+
+            all_spec_ids = self.db.spec_ids_by_comp_ids(comp_ids).set_index("comp_id")
+            for comp_id in comp_ids:
+                new_spec_ids = all_spec_ids.loc[comp_id].spec_id.to_list()
+
+                # Get most similar embedding from one of the top-10 compounds
+                embs = self.db.ref_sdb.get_embeddings(new_spec_ids)
+                similarities = cosine_similarity(embs[1], embeddings_queries[i].reshape(1, -1))
+                max_id = np.argmax(similarities)
+                spec_ids_selected.append(embs[0][max_id])
+                embeddings_selected.append(embs[1][max_id])
+                spec_ids_all.extend(new_spec_ids)
+            
+            top1_top10_similarities = cosine_similarity(embeddings_selected, embeddings_queries[i].reshape(1, -1))
+            fingerprints = self.db.ref_cdb.get_fingerprints(comp_ids)
+            fingerprints_merged.append(merge_fingerprints(fingerprints, weights=top1_top10_similarities))
+            weighted_average_scores.append(np.sum(top1_top10_similarities ** 2) / np.sum(top1_top10_similarities))
+            if self.large_scale_fingerprint_index:
+                analogue_predictions = self.large_scale_fingerprint_index.query(fingerprints_merged, k=k_compounds)
+            elif self.fingerprint_index:
+                analogue_predictions = self.fingerprint_index.query(fingerprints_merged, k=k_compounds)
+            else:
+                raise RuntimeError("No fingerprint index is set. Build or load it before querying.")       
+        return pd.DataFrame({
+            "analogue_predictions": analogue_predictions,
+            "weighted_average_scores": weighted_average_scores
+        })
 
     # ------------------------------------------------------------------
     # Helpers / glue

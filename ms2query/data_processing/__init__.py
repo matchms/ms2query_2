@@ -1,5 +1,5 @@
 from .chemistry_utils import compute_morgan_fingerprints, inchikey14_from_full
-from .fingerprint_computation import compute_fingerprints_from_smiles
+from .fingerprint_computation import compute_fingerprints_from_smiles, merge_fingerprints
 from .merging_utils import cluster_block, get_merged_spectra
 from .spectra_processing import compute_spectra_embeddings, normalize_spectrum_sum
 
@@ -11,5 +11,6 @@ __all__ = [
     "compute_spectra_embeddings",
     "get_merged_spectra",
     "inchikey14_from_full",
+    "merge_fingerprints",
     "normalize_spectrum_sum",
 ]
