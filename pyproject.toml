@@ -28,7 +28,7 @@ pandas = ">=2.1.1"
 scipy= ">=1.14.0"
 matplotlib= ">=3.8.0"
 matchms= ">=0.30.0"
-ms2deepscore= { git = "https://github.com/matchms/ms2deepscore.git", branch = "pytorch_update" }
+ms2deepscore= ">=2.6.0"
 rdkit= ">2024.3.4"
 nmslib= ">=2.0.0"
 umap-learn= ">=0.5.7"
