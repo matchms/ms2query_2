@@ -1,8 +1,6 @@
 from typing import Dict
-
 import numpy as np
 from matchms.similarity.vector_similarity_functions import jaccard_similarity_matrix
-
 from ms2query.benchmarking.SpectrumDataSet import SpectraWithFingerprints
 
 

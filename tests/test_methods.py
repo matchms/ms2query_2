@@ -1,17 +1,15 @@
 import numpy as np
-from matchms.similarity.vector_similarity_functions import jaccard_similarity_matrix
-
-from ms2query.benchmarking.SpectrumDataSet import SpectraWithMS2DeepScoreEmbeddings
-from ms2query.benchmarking.reference_methods.predict_highest_cosine import predict_highest_cosine
-from tests.conftest import create_test_spectra, ms2deepscore_model
-from ms2query.benchmarking.reference_methods.predict_highest_ms2deepscore import predict_highest_ms2deepscore
-from ms2query.benchmarking.reference_methods.predict_best_possible_match import predict_best_possible_match
-from ms2query.benchmarking.reference_methods.predict_with_integrated_similarity_flow import (
-    predict_with_integrated_similarity_flow,
-    integrated_similarity_flow,
-)
-
 import pytest
+from matchms.similarity.vector_similarity_functions import jaccard_similarity_matrix
+from ms2query.benchmarking.reference_methods.predict_best_possible_match import predict_best_possible_match
+from ms2query.benchmarking.reference_methods.predict_highest_cosine import predict_highest_cosine
+from ms2query.benchmarking.reference_methods.predict_highest_ms2deepscore import predict_highest_ms2deepscore
+from ms2query.benchmarking.reference_methods.predict_with_integrated_similarity_flow import (
+    integrated_similarity_flow,
+    predict_with_integrated_similarity_flow,
+)
+from ms2query.benchmarking.SpectrumDataSet import SpectraWithMS2DeepScoreEmbeddings
+from tests.conftest import create_test_spectra, ms2deepscore_model
 
 
 @pytest.mark.parametrize(

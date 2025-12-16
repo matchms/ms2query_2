@@ -1,8 +1,7 @@
-from typing import Tuple, List
-from tqdm import tqdm
+from typing import List, Tuple
 import numpy as np
 from matchms.similarity.vector_similarity_functions import jaccard_similarity_matrix
-
+from tqdm import tqdm
 from ms2query.benchmarking.reference_methods.PredictMS2DeepScoreSimilarity import predict_top_ms2deepscores
 from ms2query.benchmarking.SpectrumDataSet import SpectraWithMS2DeepScoreEmbeddings
 

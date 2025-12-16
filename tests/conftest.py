@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-
 import numpy as np
 from matchms.Spectrum import Spectrum
 from ms2deepscore.models import load_model

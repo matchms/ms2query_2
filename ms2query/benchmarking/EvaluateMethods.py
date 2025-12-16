@@ -1,11 +1,8 @@
 import random
-
+from typing import Callable, List, Tuple
 import numpy as np
-from typing import Callable, Tuple, List
-
 from matchms.similarity.vector_similarity_functions import jaccard_similarity_matrix
 from tqdm import tqdm
-
 from ms2query.benchmarking.SpectrumDataSet import SpectraWithFingerprints, SpectrumSetBase
 
 

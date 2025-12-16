@@ -1,10 +1,10 @@
 import pytest
-from ms2query.benchmarking.SpectrumDataSet import SpectraWithMS2DeepScoreEmbeddings
 from ms2query.benchmarking.EvaluateMethods import EvaluateMethods
-from ms2query.benchmarking.reference_methods.predict_highest_ms2deepscore import predict_highest_ms2deepscore
 from ms2query.benchmarking.reference_methods.predict_best_possible_match import predict_best_possible_match
-from tests.conftest import create_test_spectra, ms2deepscore_model
 from ms2query.benchmarking.reference_methods.predict_highest_cosine import predict_highest_cosine
+from ms2query.benchmarking.reference_methods.predict_highest_ms2deepscore import predict_highest_ms2deepscore
+from ms2query.benchmarking.SpectrumDataSet import SpectraWithMS2DeepScoreEmbeddings
+from tests.conftest import create_test_spectra, ms2deepscore_model
 
 
 @pytest.mark.parametrize(

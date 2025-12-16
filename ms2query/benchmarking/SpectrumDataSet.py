@@ -1,12 +1,10 @@
 import copy
 from collections import Counter
-from typing import List, Dict, Iterable
-
+from typing import Dict, Iterable, List
 import numpy as np
 from matchms import Spectrum
 from matchms.filtering.metadata_processing.add_fingerprint import _derive_fingerprint_from_inchi
-
-from ms2deepscore.models import compute_embedding_array, SiameseSpectralModel
+from ms2deepscore.models import SiameseSpectralModel, compute_embedding_array
 from tqdm import tqdm
 
 

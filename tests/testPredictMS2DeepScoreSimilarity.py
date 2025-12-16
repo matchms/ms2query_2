@@ -1,11 +1,10 @@
 import numpy as np
 import pytest
-
 from ms2query.benchmarking.reference_methods.PredictMS2DeepScoreSimilarity import (
     predict_top_ms2deepscores,
 )
-from tests.conftest import create_test_spectra, ms2deepscore_model
 from ms2query.benchmarking.SpectrumDataSet import SpectraWithMS2DeepScoreEmbeddings
+from tests.conftest import create_test_spectra, ms2deepscore_model
 
 
 @pytest.mark.parametrize(

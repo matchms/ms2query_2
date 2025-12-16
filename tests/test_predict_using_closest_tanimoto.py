@@ -1,12 +1,14 @@
 import numpy as np
-
-from ms2query.benchmarking.SpectrumDataSet import SpectraWithMS2DeepScoreEmbeddings, SpectraWithFingerprints
-from ms2query.benchmarking.reference_methods.predict_using_closest_tanimoto import (
-    predict_using_closest_tanimoto, predict_using_closest_tanimoto_single_spectrum,
-    get_average_predictions_for_closely_related_metabolites, get_inchikey_and_tanimoto_scores_for_top_k,
-    select_inchikeys_with_highest_ms2deepscore)
-from tests.conftest import ms2deepscore_model, create_test_spectra
 import pytest
+from ms2query.benchmarking.reference_methods.predict_using_closest_tanimoto import (
+    get_average_predictions_for_closely_related_metabolites,
+    get_inchikey_and_tanimoto_scores_for_top_k,
+    predict_using_closest_tanimoto,
+    predict_using_closest_tanimoto_single_spectrum,
+    select_inchikeys_with_highest_ms2deepscore,
+)
+from ms2query.benchmarking.SpectrumDataSet import SpectraWithFingerprints, SpectraWithMS2DeepScoreEmbeddings
+from tests.conftest import create_test_spectra, ms2deepscore_model
 
 
 def test_predict_using_closest_tanimoto():

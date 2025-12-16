@@ -1,12 +1,11 @@
 import numpy as np
 import pytest
-
 from ms2query.benchmarking.SpectrumDataSet import (
     SpectraWithFingerprints,
-    SpectrumSetBase,
     SpectraWithMS2DeepScoreEmbeddings,
+    SpectrumSetBase,
 )
-from tests.conftest import create_test_spectra, ms2deepscore_model, get_inchikey_inchi_pairs
+from tests.conftest import create_test_spectra, get_inchikey_inchi_pairs, ms2deepscore_model
 
 
 @pytest.mark.parametrize(

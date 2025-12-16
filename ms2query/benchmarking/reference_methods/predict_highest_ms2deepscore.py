@@ -1,5 +1,4 @@
-from typing import Tuple, List
-
+from typing import List, Tuple
 from ms2query.benchmarking.reference_methods.PredictMS2DeepScoreSimilarity import predict_top_ms2deepscores
 from ms2query.benchmarking.SpectrumDataSet import SpectraWithMS2DeepScoreEmbeddings
 

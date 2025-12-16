@@ -1,11 +1,10 @@
+from typing import List, Tuple
 import numpy as np
 from ms2deepscore.vector_operations import cosine_similarity_matrix
-from typing import Tuple, List
-
-from ms2query.benchmarking.SpectrumDataSet import SpectraWithMS2DeepScoreEmbeddings, SpectraWithFingerprints
+from tqdm import tqdm
+from ms2query.benchmarking.SpectrumDataSet import SpectraWithFingerprints, SpectraWithMS2DeepScoreEmbeddings
 from ms2query.metrics import generalized_tanimoto_similarity_matrix
 
-from tqdm import tqdm
 
 def predict_using_closest_tanimoto(
     library_spectra: SpectraWithMS2DeepScoreEmbeddings, query_spectra: SpectraWithMS2DeepScoreEmbeddings,

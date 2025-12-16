@@ -1,5 +1,4 @@
-from typing import Tuple, List
-
+from typing import List, Tuple
 from matchms import Scores
 from matchms.similarity.CosineGreedy import CosineGreedy
 from matchms.similarity.PrecursorMzMatch import PrecursorMzMatch
