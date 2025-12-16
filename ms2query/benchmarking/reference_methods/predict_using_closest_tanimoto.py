@@ -5,6 +5,7 @@ from typing import Tuple, List
 from ms2query.benchmarking.SpectrumDataSet import SpectraWithMS2DeepScoreEmbeddings, SpectraWithFingerprints
 from ms2query.metrics import generalized_tanimoto_similarity_matrix
 
+from tqdm import tqdm
 
 def predict_using_closest_tanimoto(
     library_spectra: SpectraWithMS2DeepScoreEmbeddings, query_spectra: SpectraWithMS2DeepScoreEmbeddings,
@@ -16,7 +17,7 @@ def predict_using_closest_tanimoto(
     """
     inchikeys_of_best_match = []
     highest_scores = []
-    for spectrum_idx in range(len(query_spectra.spectra)):
+    for spectrum_idx in tqdm(range(len(query_spectra.spectra)), "Predicting using closest tanimoto"):
         inchikey_of_best_match, score = predict_using_closest_tanimoto_single_spectrum(
             library_spectra, query_spectra.subset_spectra([spectrum_idx]),
             nr_of_closest_inchikeys_to_select, nr_of_inchikeys_with_highest_ms2deepscore_to_select)
