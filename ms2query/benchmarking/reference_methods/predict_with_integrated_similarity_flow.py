@@ -82,7 +82,8 @@ def integrated_similarity_flow(
     predicted_scores: List[float], similarities: np.ndarray, nr_of_spectra_per_inchikey: List[float]
 ) -> List[float]:
     """Compute the confidence of the prediction for each candidate.
-    Integrated similarity flow (ISF) scores are calculated using the similarity of candidates among each other and their distance to the query spectrum.
+    Integrated similarity flow (ISF) scores are calculated using the similarity of candidates among each other
+    and their distance to the query spectrum.
 
     Args:
         distances (list): Distances of the candidates to the query spectrum in the chemical space.

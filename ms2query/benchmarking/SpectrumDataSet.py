@@ -112,7 +112,8 @@ class SpectraWithFingerprints(SpectrumSetBase):
         # Only keep the fingerprints for which we have inchikeys.
         # Important note: This is not a deep copy!
         # And the fingerprint is not reset (so it is not always actually matching the most common inchi)
-        new_instance.inchikey_fingerprint_pairs = {inchikey: self.inchikey_fingerprint_pairs[inchikey] for inchikey in new_instance.spectrum_indexes_per_inchikey.keys()}
+        new_instance.inchikey_fingerprint_pairs = {inchikey: self.inchikey_fingerprint_pairs[inchikey] for inchikey
+                                                   in new_instance.spectrum_indexes_per_inchikey.keys()}
         return new_instance
 
 

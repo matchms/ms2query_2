@@ -61,8 +61,8 @@ class EvaluateMethods:
 
         For each inchikey with more than 1 spectrum the spectra are split in two sets. Half for each inchikey is added
         to the library (training set), for the other half predictions are made. Thereby there is always an exact match
-        avaialable. Only the highest ranked prediction is considered correct if the correct inchikey is predicted. An accuracy per
-        inchikey is calculated followed by calculating the average.
+        avaialable. Only the highest ranked prediction is considered correct if the correct inchikey is predicted.
+        An accuracy per inchikey is calculated followed by calculating the average.
         """
         selected_spectra = subset_spectra_on_ionmode(self.validation_spectrum_set, ionmode)
 

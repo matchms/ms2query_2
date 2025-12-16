@@ -25,9 +25,9 @@ def predict_using_closest_tanimoto(
     return inchikeys_of_best_match, highest_scores
 
 
-def predict_using_closest_tanimoto_single_spectrum(spectra_with_embeddings, single_spectrum_with_embeddings,
-                                                   nr_of_closest_inchikeys_to_select,
-                                                   nr_of_inchikeys_with_highest_ms2deepscore_to_select) -> Tuple[str, float]:
+def predict_using_closest_tanimoto_single_spectrum(
+        spectra_with_embeddings, single_spectrum_with_embeddings,
+        nr_of_closest_inchikeys_to_select, nr_of_inchikeys_with_highest_ms2deepscore_to_select) -> Tuple[str, float]:
     if len(single_spectrum_with_embeddings.spectra) != 1:
         raise ValueError("expected a single spectrum")
     ms2deepscores = cosine_similarity_matrix(single_spectrum_with_embeddings.embeddings,

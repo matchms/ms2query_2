@@ -21,7 +21,8 @@ def predict_top_ms2deepscores(
         k: Number of highest matches to return
 
     Returns:
-        List[List[int]: indexes of highest scores and the value for the highest score. Per query embedding the top k highest indexes are given.
+        List[List[int]: indexes of highest scores and the value for the highest score.
+        Per query embedding the top k highest indexes are given.
         List[List[float]: the highest scores.
     """
     top_indexes_per_batch = []
