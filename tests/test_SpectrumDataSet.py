@@ -17,7 +17,8 @@ from tests.conftest import create_test_spectra, get_inchikey_inchi_pairs, ms2dee
     ],
 )
 def test_spectrum_set_base(library):
-    """Test all base functionality of SpectrumSetBase is implemented correctly also for all classes inheriting from it"""
+    """Test all base functionality of SpectrumSetBase is implemented correctly
+    also for all classes inheriting from it"""
     # test correct init
     assert len(library.spectra) == 9
     assert len(library.spectrum_indexes_per_inchikey) == 3
