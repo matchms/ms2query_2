@@ -8,7 +8,7 @@ from ms2query.library_io import create_new_library, load_created_library
 
 
 TEST_COMP_ID = "ZBSGKPYXQINNGF"   # expected InChIKey14 present in the test data
-EXPECTED_METADATA_SHAPE = (5, 11)
+EXPECTED_METADATA_SHAPE = (5, 12)
 EXPECTED_METADATA_FIELDS = [
     "precursor_mz", "ionmode", "smiles", "inchikey", "inchi", "name",
     "charge", "instrument_type", "adduct", "collision_energy",
@@ -56,7 +56,7 @@ def test_create_and_load_library(tmp_path: Path):
     ms2query_db = lib.db
 
     # Metadata query by compound id (expected shape from your snippet)
-    df_meta = ms2query_db.metadata_by_comp_id(TEST_COMP_ID)
+    df_meta = ms2query_db.metadata_by_comp_ids([TEST_COMP_ID])
     assert tuple(df_meta.shape) == EXPECTED_METADATA_SHAPE
 
     # Metadata fields presence both in db wrapper and in returned dataframe

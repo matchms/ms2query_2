@@ -467,6 +467,15 @@ class CompoundDatabase:
         Does NOT write to the database.
         Provide exactly one of (smiles, inchis).
 
+        Parameters
+        ----------
+        smiles : Optional[List[str]], optional
+            List of SMILES strings, by default None
+        inchis : Optional[List[str]], optional
+            List of InChI strings, by default None
+        progress_bar : bool, optional
+            Whether to show a progress bar, by default False
+
         Returns the same shapes/types as compute_morgan_fingerprints:
           - dense: np.ndarray of shape (N, nbits)
           - sparse/binary: List[np.ndarray[uint32]]
@@ -569,6 +578,39 @@ class CompoundDatabase:
                 .sort_values("__order")
                 .drop(columns="__order")
                 .reset_index(drop=True))
+
+    def get_all_compound_ids(self) -> List[str]:
+        """Return all compound IDs in ascending comp_id order.
+        """
+        rows = self._conn.execute(f"""
+            SELECT comp_id FROM {self.table}
+            ORDER BY comp_id ASC
+        """).fetchall()
+        return [row["comp_id"] for row in rows]
+    
+    def get_all_fingerprints_and_comp_ids(self) -> Dict[str, AnyFP]:
+        """Return all compound IDs and their fingerprints in ascending comp_id order.
+        """
+        rows = self._conn.execute(f"""
+            SELECT comp_id, fingerprint_bits, fingerprint_counts, fingerprint_dense
+            FROM {self.table}
+            ORDER BY comp_id ASC
+        """).fetchall()
+        comp_ids = []
+        fps = []
+        for row in rows:
+            comp_ids.append(row["comp_id"])
+            dense_blob  = row["fingerprint_dense"]  or b""
+            bits_blob   = row["fingerprint_bits"]   or b""
+            counts_blob = row["fingerprint_counts"] or b""
+            if dense_blob:
+                fps.append(decode_dense_fp(dense_blob, dtype=self.fingerprint_dtype_dense))
+            elif bits_blob or counts_blob:
+                bits, counts = decode_sparse_fp(bits_blob, counts_blob)
+                fps.append(bits if counts.size == 0 else (bits, counts))
+            else:
+                fps.append(None)
+        return {"comp_ids": comp_ids, "fingerprints": fps}
 
     def sql_query(self, query: str) -> pd.DataFrame:
         return pd.read_sql_query(query, self._conn)

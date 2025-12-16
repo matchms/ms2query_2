@@ -8,7 +8,7 @@ from matchms.similarity import CosineGreedy
 from tqdm import tqdm
 from ms2query import MS2QueryDatabase, MS2QueryLibrary
 from ms2query.data_processing.merging_utils import cluster_block, get_merged_spectra
-from ms2query.database import EmbeddingIndex
+from ms2query.database import EmbeddingIndex, FingerprintSparseIndex
 from ms2query.database.spectra_merging import _split_by_mode_charge
 
 
@@ -18,6 +18,7 @@ _MANIFEST_NAME = "ms2query_manifest.json"
 _SQLITE_NAME   = "ms2query_library.sqlite"
 _EMB_TABLE     = "embeddings"
 _EMB_INDEX_BASENAME = "embedding_index"     # will create embedding_index.{nmslib,ids.npy,meta.json}
+_FP_INDEX_BASENAME = "fingerprint_index"   # will create fingerprint_index.{nmslib,ids.npy,meta.json}
 
 
 def _handle_default_settings(settings: dict) -> dict:
@@ -81,6 +82,7 @@ def create_new_library(
     model_path: str,
     additional_compound_file: Optional[str] = None,
     build_embedding_index: bool = True,
+    build_fingerprint_index: bool = True,
     embedding_index_params: Optional[dict] = None,
     compute_embeddings_batch_rows: int = 4096,
     **settings,
@@ -101,6 +103,8 @@ def create_new_library(
         CSV/TSV file with additional compounds (inchikey/smiles/etc.). No fingerprints assumed here.
     build_embedding_index : bool
         Whether to build the nmslib cosine HNSW index over embeddings.
+    build_fingerprint_index : bool
+        Whether to build the FingerprintSparseIndex over compound fingerprints.
     embedding_index_params : dict
         Params for HNSW: {'M': int, 'ef_construction': int, 'post_init_ef': int, 'batch_rows': int}
     compute_embeddings_batch_rows : int
@@ -139,6 +143,8 @@ def create_new_library(
     _print_progress(f"Inserted {creation_stats['n_inserted_spectra']} spectra.")
     _print_progress(f"Mapped {creation_stats['n_mapped']} spectra to compounds; "
                     f"created {creation_stats['n_new_compounds']} new compounds.")
+    stats = ms2query_db.ref_cdb.compute_fingerprints_missing()
+    _print_progress(f"Computed fingerprints for {stats['updated']} compounds.")
 
     if additional_compound_file is not None:
         if not additional_compound_file.lower().endswith((".csv", ".tsv", ".txt")):
@@ -199,6 +205,23 @@ def create_new_library(
         _print_progress(f"Saved EmbeddingIndex files with prefix: {emb_prefix}")
         lib.set_embedding_index(emb_index)
 
+    if build_fingerprint_index:
+        # TODO: this is not efficient yet; improve later
+        _print_progress("Building FingerprintSparseIndex ...")
+        results = lib.db.ref_cdb.get_all_fingerprints_and_comp_ids()
+        max_bits = [x[0][-1] for x in results["fingerprints"]]
+        fp_index = FingerprintSparseIndex(dim=int(max(max_bits) + 1))
+    
+        fp_index.build_index(
+            results["fingerprints"],
+            results["comp_ids"],
+        )
+        fp_prefix = str(out_dir / _FP_INDEX_BASENAME)
+        fp_index.save_index(fp_prefix)
+        _print_progress(f"Saved FingerprintSparseIndex files with prefix: {fp_prefix}")
+        lib.set_fingerprint_index(fp_index)
+
+
     # -----------------------------
     # Manifest
     # -----------------------------
@@ -208,6 +231,7 @@ def create_new_library(
         "embedding_table": _EMB_TABLE,
         "model_path": model_path,                    # stored for convenience; not copied
         "embedding_index_prefix": _EMB_INDEX_BASENAME if build_embedding_index else None,
+        "fingerprint_index_prefix": _FP_INDEX_BASENAME if build_fingerprint_index else None,
         "settings": settings,
     }
     with open(out_dir / _MANIFEST_NAME, "w", encoding="utf-8") as f:
@@ -262,6 +286,13 @@ def load_created_library(folder: str) -> MS2QueryLibrary:
         emb_index = EmbeddingIndex()
         emb_index.load_index(str(out_dir / emb_prefix))
         lib.set_embedding_index(emb_index)
+    
+    # Load FingerprintSparseIndex if present
+    fp_prefix = manifest.get("fingerprint_index_prefix")
+    if fp_prefix:
+        fp_index = FingerprintSparseIndex()
+        fp_index.load_index(str(out_dir / fp_prefix))
+        lib.set_fingerprint_index(fp_index)
 
     # (Optional) Load fingerprint index here if/when you add it later.
 

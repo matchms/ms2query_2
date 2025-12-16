@@ -9,7 +9,7 @@ from ms2query.library_io import create_new_library, load_created_library
 
 
 TEST_COMP_ID = "ZBSGKPYXQINNGF"   # known from your snippet
-EXPECTED_METADATA_SHAPE = (5, 11)
+EXPECTED_METADATA_SHAPE = (5, 12)
 EXPECTED_METADATA_FIELDS = [
     "precursor_mz", "ionmode", "smiles", "inchikey", "inchi", "name",
     "charge", "instrument_type", "adduct", "collision_energy",
@@ -79,7 +79,7 @@ def test_create_and_load_smoke(tmp_path: Path):
 
     # DB content checks
     ms2query_db = lib.db
-    meta_df = ms2query_db.metadata_by_comp_id(TEST_COMP_ID)
+    meta_df = ms2query_db.metadata_by_comp_ids([TEST_COMP_ID])
     assert tuple(meta_df.shape) == EXPECTED_METADATA_SHAPE
     for field in EXPECTED_METADATA_FIELDS:
         assert field in ms2query_db.metadata_fields

@@ -4,7 +4,13 @@ import sqlite3
 import numpy as np
 import pytest
 import scipy.sparse as sp
-from ms2query.database.ann_vector_index import EmbeddingIndex, csr_row_from_tuple, l1_norms_csr, tuples_to_csr
+from ms2query.database.ann_vector_index import (
+    EmbeddingIndex,
+    FingerprintSparseIndex,  # <-- added
+    csr_row_from_tuple,
+    l1_norms_csr,
+    tuples_to_csr,
+)
 
 
 def _mk_unit_vecs(*rows):
@@ -15,8 +21,8 @@ def _mk_unit_vecs(*rows):
 
 
 def test_build_index_and_query_dense():
-    X = _mk_unit_vecs([1,0,0], [0,1,0], [0,0,1])
-    ids = ["a","b","c"]
+    X = _mk_unit_vecs([1, 0, 0], [0, 1, 0], [0, 0, 1])
+    ids = ["a", "b", "c"]
     idx = EmbeddingIndex(dim=3)
     idx.build_index(X, ids)
     # Query close to [1,0,0]
@@ -27,11 +33,11 @@ def test_build_index_and_query_dense():
 
 
 def test_build_index_normalizes_when_requested():
-    X = np.array([[2.0,0,0],[0,2.0,0]], dtype=np.float32)
-    ids = ["x","y"]
+    X = np.array([[2.0, 0, 0], [0, 2.0, 0]], dtype=np.float32)
+    ids = ["x", "y"]
     idx = EmbeddingIndex(dim=3)
     idx.build_index(X, ids)
-    q = np.array([1.0,0,0], dtype=np.float32)
+    q = np.array([1.0, 0, 0], dtype=np.float32)
     out = idx.query(q, k=1)
     assert out[0][0] == "x"
     assert 0.99 <= out[0][1] <= 1.0
@@ -41,14 +47,14 @@ def test_query_errors_and_dim_check():
     idx = EmbeddingIndex(dim=3)
     with pytest.raises(RuntimeError):
         idx.query(np.zeros(3, np.float32))
-    idx.build_index(np.eye(3, dtype=np.float32), ["a","b","c"])
+    idx.build_index(np.eye(3, dtype=np.float32), ["a", "b", "c"])
     with pytest.raises(ValueError, match="dim=3"):
         idx.query(np.zeros(4, np.float32))
 
 
 def test_save_and_load_roundtrip_dense(tmp_path):
-    X = _mk_unit_vecs([1,0,0],[0,1,0],[0,0,1])
-    ids = ["a","b","c"]
+    X = _mk_unit_vecs([1, 0, 0], [0, 1, 0], [0, 0, 1])
+    ids = ["a", "b", "c"]
     idx = EmbeddingIndex(dim=3)
     idx.build_index(X, ids)
     prefix = os.path.join(tmp_path, "emb")
@@ -59,7 +65,7 @@ def test_save_and_load_roundtrip_dense(tmp_path):
     idx2.load_index(prefix)
 
     # Query should still work
-    res = idx2.query(np.array([1.0,0,0], dtype=np.float32), k=1)
+    res = idx2.query(np.array([1.0, 0, 0], dtype=np.float32), k=1)
     assert res[0][0] == "a"
     # meta persisted
     with open(prefix + ".meta.json") as f:
@@ -72,7 +78,8 @@ def test_build_index_from_sqlite_streams_and_orders(batch_rows):
     conn = sqlite3.connect(":memory:")
     conn.execute("CREATE TABLE embeddings(spec_id TEXT, vec BLOB, d INTEGER)")
     # Add 3 vectors of dim 3
-    conn.executemany( "INSERT INTO embeddings(spec_id, vec, d) VALUES (?,?,?)",
+    conn.executemany(
+        "INSERT INTO embeddings(spec_id, vec, d) VALUES (?,?,?)",
         [
             ("id_1", np.array([1.0, 0.0, 0.0], np.float32).tobytes(), 3),
             ("id_2", np.array([1.0, 1.0, 0.0], np.float32).tobytes(), 3),
@@ -106,7 +113,7 @@ def test_build_index_from_sqlite_errors():
 
     # Empty table should error
     conn2 = sqlite3.connect(":memory:")
-    conn2.execute("CREATE TABLE embeddings(spec_id TEXT, vec BLOB, d INTEGER)")
+    conn2.execute("CREATE TABLE embeddings(spec_id TEXT, vec, d INTEGER)")
     with pytest.raises(ValueError, match="No rows"):
         idx.build_index_from_sqlite(conn2, embeddings_table="embeddings")
 
@@ -158,3 +165,51 @@ def test_l1_norms_csr():
     norms = l1_norms_csr(X)
     np.testing.assert_allclose(norms, [3.0, 1.0, 4.0])
     assert norms.dtype == np.float64
+
+
+def test_save_and_load_roundtrip_fingerprint_sparse(tmp_path):
+    # Build a tiny sparse fingerprint matrix with 3 compounds, dim=5
+    tuples = [
+        (np.array([0, 3], dtype=np.int32), np.array([1.0, 0.5], dtype=np.float32)),
+        (np.array([1], dtype=np.int32),    np.array([1.0], dtype=np.float32)),
+        (np.array([2, 4], dtype=np.int32), np.array([0.2, 2.0], dtype=np.float32)),
+    ]
+    csr = tuples_to_csr(tuples, dim=5)
+    comp_ids = np.array([10, 11, 12], dtype=int)
+
+    idx = FingerprintSparseIndex(dim=5)
+    idx.build_index(
+        csr,
+        comp_ids,
+        keep_csr_for_rerank=True,
+        compute_l1_for_rerank=True,
+    )
+
+    # Basic sanity: query with the first fingerprint should hit comp_id=10 first
+    q = tuples[0]
+    res = idx.query(q, k=1)
+    assert res[0][0] == 10
+
+    # Save to disk
+    prefix = os.path.join(tmp_path, "fp")
+    idx.save_index(prefix)
+
+    # New instance loads back
+    idx2 = FingerprintSparseIndex()
+    idx2.load_index(prefix)
+
+    # Query should still work and return the same top compound
+    res2 = idx2.query(q, k=1)
+    assert res2[0][0] == 10
+
+    # CSR and L1 data should have been persisted
+    assert idx2._csr is not None
+    assert idx2._l1 is not None
+    assert idx2._csr.shape == csr.shape
+    assert idx2._l1.shape[0] == csr.shape[0]
+
+    # Meta persisted and type is correct
+    with open(prefix + ".meta.json") as f:
+        meta = json.load(f)
+    assert meta["type"] == "FingerprintSparseIndex"
+    assert meta["space"] == "cosinesimil_sparse"
