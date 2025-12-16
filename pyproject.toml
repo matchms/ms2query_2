@@ -49,6 +49,9 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
+exclude = [
+    "ms2query/notebooks/",
+]
 line-length = 120
 output-format = "grouped"
 
