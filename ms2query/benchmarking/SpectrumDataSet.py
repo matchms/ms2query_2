@@ -13,10 +13,16 @@ class SpectrumSet:
 
     def __init__(self, spectra: List[Spectrum], progress_bars=False):
         self._spectra = []
-        self.spectrum_indexes_per_inchikey = {}
+        self.spectrum_indexes_per_inchikey = defaultdict(list)
         self.progress_bars = progress_bars
         # init spectra
         self._add_spectra_and_group_per_inchikey(spectra)
+        self.most_common_inchi_per_inchikey = {}
+        self._update_most_common_inchi_per_inchikey(list(self.spectrum_indexes_per_inchikey.keys()))
+
+    def add_spectra(self, new_spectra: "SpectrumSet"):
+        updated_inchikeys = self._add_spectra_and_group_per_inchikey(new_spectra.spectra)
+        self._update_most_common_inchi_per_inchikey(updated_inchikeys)
 
     def _add_spectra_and_group_per_inchikey(self, spectra: List[Spectrum]):
         starting_index = len(self._spectra)
@@ -28,16 +34,14 @@ class SpectrumSet:
             spectrum_index = starting_index + i
             inchikey = spectrum.get("inchikey")[:14]
             updated_inchikeys.add(inchikey)
-            if inchikey in self.spectrum_indexes_per_inchikey:
-                self.spectrum_indexes_per_inchikey[inchikey].append(spectrum_index)
-            else:
-                self.spectrum_indexes_per_inchikey[inchikey] = [
-                    spectrum_index,
-                ]
+            self.spectrum_indexes_per_inchikey[inchikey].append(spectrum_index)
         return updated_inchikeys
 
-    def add_spectra(self, new_spectra: "SpectrumSet"):
-        return self._add_spectra_and_group_per_inchikey(new_spectra.spectra)
+    def _update_most_common_inchi_per_inchikey(self, new_inchikeys):
+        for inchikey in tqdm(new_inchikeys, desc="Get most common inchi per inchikey"):
+            spectra_matching_inchikey = self.spectra_per_inchikey(inchikey)
+            most_common_inchi = Counter([spectrum.get("inchi") for spectrum in spectra_matching_inchikey]).most_common(1)[0][0]
+            self.most_common_inchi_per_inchikey[inchikey](most_common_inchi)
 
     def subset_spectra(self, spectrum_indexes) -> "SpectrumSet":
         """Returns a new instance of a subset of the spectra"""
