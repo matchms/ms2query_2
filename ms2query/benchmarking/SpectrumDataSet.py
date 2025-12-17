@@ -133,27 +133,13 @@ class Fingerprints:
 
         self.update_fingerprints(inchikeys_to_update)
 
-class SpectraWithFingerprints(SpectrumSet):
-    """Stores a spectrum dataset making it easy and fast to split on molecules"""
+    @property
+    def index_to_inchikey(self):
+        return self._index_to_inchikey
 
-    def __init__(self, spectra: List[Spectrum], fingerprint_type="daylight", nbits=4096):
-        super().__init__(spectra)
-        self.fingerprint_type = fingerprint_type
-        self.nbits = nbits
-        self.inchikey_fingerprint_pairs: Dict[str, np.array] = {}
-        # init spectra
-        self.update_fingerprint_per_inchikey(self.spectrum_indexes_per_inchikey.keys())
-
-    def add_spectra(self, new_spectra: "SpectraWithFingerprints"):
-        updated_inchikeys = super().add_spectra(new_spectra)
-        if hasattr(new_spectra, "inchikey_fingerprint_pairs"):
-            if new_spectra.nbits == self.nbits and new_spectra.fingerprint_type == self.fingerprint_type:
-                if len(self.inchikey_fingerprint_pairs.keys() & new_spectra.inchikey_fingerprint_pairs.keys()) == 0:
-                    self.inchikey_fingerprint_pairs = (
-                        self.inchikey_fingerprint_pairs | new_spectra.inchikey_fingerprint_pairs
-                    )
-                    return
-        self.update_fingerprint_per_inchikey(updated_inchikeys)
+    def _add_inchikeys_to_index(self, inchikeys_to_add):
+        self._index_to_inchikey.extend(inchikeys_to_add)
+        self._inchikey_to_index = {inchikey: index for index, inchikey in enumerate(self.index_to_inchikey)}
 
     def update_fingerprint_per_inchikey(self, inchikeys_to_update: Iterable[str]):
         for inchikey in tqdm(
