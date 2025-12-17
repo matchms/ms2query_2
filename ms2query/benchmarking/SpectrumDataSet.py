@@ -1,6 +1,6 @@
 import copy
-from collections import Counter
-from typing import Dict, Iterable, List
+from collections import Counter, defaultdict
+from typing import Dict, Iterable, List, Optional
 import numpy as np
 from matchms import Spectrum
 from matchms.filtering.metadata_processing.add_fingerprint import _derive_fingerprint_from_inchi
@@ -64,6 +64,55 @@ class SpectrumSet:
         new_instance.spectrum_indexes_per_inchikey = copy.deepcopy(self.spectrum_indexes_per_inchikey)
         return new_instance
 
+class Fingerprints:
+    def __init__(self, most_common_inchi_per_inchikey, fingerprint_type, nbits):
+        self.most_common_inchi_per_inchikey = most_common_inchi_per_inchikey
+        self.index_to_inchikey = list(self.most_common_inchi_per_inchikey.keys())
+        self.inchikey_to_index = {inchikey: index for index, inchikey in enumerate(self.index_to_inchikey)}
+        self.fingerprint_type = fingerprint_type
+        self.nbits = nbits
+
+        self.fingerprints = np.zeros((len(self.index_to_inchikey), self.nbits), dtype=np.uint8)
+        self.update_fingerprints(self.index_to_inchikey)
+
+    def update_fingerprints(self, inchikeys: Iterable[str]):
+        for inchikey in tqdm(inchikeys, desc="Adding fingerprints to Inchikeys"):
+            inchikey_index = self.inchikey_to_index[inchikey]
+            self.fingerprints[inchikey_index, :] = self.compute_fingerprint(inchikey)
+
+    def compute_fingerprint(self, inchikey):
+        most_common_inchi = self.most_common_inchi_per_inchikey[inchikey]
+        fingerprint = _derive_fingerprint_from_inchi(
+            most_common_inchi, fingerprint_type=self.fingerprint_type, nbits=self.nbits)
+        if not isinstance(fingerprint, np.ndarray):
+            raise ValueError(f"Fingerprint could not be set for InChI: {most_common_inchi}")
+        return fingerprint
+
+    def get_fingerprints(self, list_of_inchikeys):
+        list_of_indexes = [self.inchikey_to_index[inchikey] for inchikey in list_of_inchikeys]
+        return self.fingerprints[list_of_indexes]
+
+    def add_new_inchikeys(self, new_most_common_inchi_per_inchikey: dict[str, str]):
+        inchikeys_to_update = []
+        inchikeys_to_add = []
+        for inchikey, inchi in new_most_common_inchi_per_inchikey.items():
+            if inchikey in self.most_common_inchi_per_inchikey:
+                if self.most_common_inchi_per_inchikey[inchikey] == inchi:
+                    # the inchikey is unchanged
+                    continue
+            else:
+                inchikeys_to_add.append(inchikey)
+            self.most_common_inchi_per_inchikey[inchikey] = inchi
+            inchikeys_to_update.append(inchikey)
+
+        # Add the inchikeys_to_add
+        if inchikeys_to_add:
+            self.index_to_inchikey.extend(inchikeys_to_add)
+            self.inchikey_to_index = {inchikey: index for index, inchikey in enumerate(self.index_to_inchikey)}
+            new_rows = np.zeros((len(inchikeys_to_add), self.nbits), dtype=np.uint8)
+            self.fingerprints = np.vstack([self.fingerprints, new_rows])
+
+        self.update_fingerprints(inchikeys_to_update)
 
 class SpectraWithFingerprints(SpectrumSet):
     """Stores a spectrum dataset making it easy and fast to split on molecules"""
