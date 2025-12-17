@@ -20,9 +20,16 @@ class SpectrumSet:
         self.most_common_inchi_per_inchikey = {}
         self._update_most_common_inchi_per_inchikey(list(self.spectrum_indexes_per_inchikey.keys()))
 
+        self._fingerprints = None
+        self._embeddings = None
+
     def add_spectra(self, new_spectra: "SpectrumSet"):
         updated_inchikeys = self._add_spectra_and_group_per_inchikey(new_spectra.spectra)
         self._update_most_common_inchi_per_inchikey(updated_inchikeys)
+        if self.embeddings is not None:
+            self.embeddings.add_embeddings(new_spectra.embeddings)
+        if self.fingerprints is not None:
+            self.fingerprints.add_new_inchikeys(new_spectra.most_common_inchi_per_inchikey)
 
     def _add_spectra_and_group_per_inchikey(self, spectra: List[Spectrum]):
         starting_index = len(self._spectra)
@@ -45,10 +52,13 @@ class SpectrumSet:
 
     def subset_spectra(self, spectrum_indexes) -> "SpectrumSet":
         """Returns a new instance of a subset of the spectra"""
-        new_instance = copy.copy(self)
-        new_instance._spectra = []
-        new_instance.spectrum_indexes_per_inchikey = {}
-        new_instance._add_spectra_and_group_per_inchikey([self._spectra[index] for index in spectrum_indexes])
+        spectra = [self._spectra[index] for index in spectrum_indexes]
+        new_instance = SpectrumSet(spectra, progress_bars=self.progress_bars)
+        if self.embeddings is not None:
+            new_instance._embeddings = self.embeddings.get_embeddings(spectra)
+        if self.fingerprints is not None:
+            inchikeys = [spectrum.get("inchikey")[:14] for spectrum in spectra]
+            new_instance._fingerprints = self.fingerprints.subset_fingerprints(inchikeys)
         return new_instance
 
     def spectra_per_inchikey(self, inchikey) -> List[Spectrum]:
@@ -57,9 +67,23 @@ class SpectrumSet:
             matching_spectra.append(self._spectra[index])
         return matching_spectra
 
+    def add_embeddings(self, model: SiameseSpectralModel):
+        self._embeddings = Embeddings(self._spectra, model)
+
+    def add_fingerprints(self, fingerprint_type, nbits):
+        self._fingerprints = Fingerprints(self.most_common_inchi_per_inchikey, fingerprint_type, nbits)
+
     @property
     def spectra(self):
         return self._spectra
+
+    @property
+    def fingerprints(self):
+        return self._fingerprints
+
+    @property
+    def embeddings(self):
+        return self._embeddings
 
     def copy(self):
         """This copy method ensures all spectra are"""
@@ -141,52 +165,30 @@ class Fingerprints:
         self._index_to_inchikey.extend(inchikeys_to_add)
         self._inchikey_to_index = {inchikey: index for index, inchikey in enumerate(self.index_to_inchikey)}
 
-    def update_fingerprint_per_inchikey(self, inchikeys_to_update: Iterable[str]):
-        for inchikey in tqdm(
-            inchikeys_to_update, desc="Adding fingerprints to Inchikeys", disable=not self.progress_bars
-        ):
-            spectra = self.spectra_per_inchikey(inchikey)
-            most_common_inchi = Counter([spectrum.get("inchi") for spectrum in spectra]).most_common(1)[0][0]
-            fingerprint = _derive_fingerprint_from_inchi(
-                most_common_inchi, fingerprint_type=self.fingerprint_type, nbits=self.nbits
-            )
-            if not isinstance(fingerprint, np.ndarray):
-                raise ValueError(f"Fingerprint could not be set for InChI: {most_common_inchi}")
-            self.inchikey_fingerprint_pairs[inchikey] = fingerprint
 
-    def copy(self):
-        """This copy method ensures all spectra are"""
-        new_instance = super().copy()
-        new_instance.inchikey_fingerprint_pairs = copy.copy(self.inchikey_fingerprint_pairs)
-        return new_instance
+class Embeddings:
+    """Stores Embeddings for a list of mass spectra"""
+    def __init__(self, spectra: List[Spectrum],
+                 model: SiameseSpectralModel):
+        self.index_to_spectrum_hash = [spectrum.__hash__() for spectrum in spectra]
+        if set(self.index_to_spectrum_hash) != len(spectra):
+            raise ValueError("There are duplicated spectra in the spectrum list")
+        self.spectrum_hash_to_index = {spectrum_hash: index for index, spectrum_hash in enumerate(self.index_to_spectrum_hash)}
 
-    def subset_spectra(self, spectrum_indexes) -> "SpectraWithFingerprints":
-        """Returns a new instance of a subset of the spectra"""
-        new_instance = super().subset_spectra(spectrum_indexes)
-        # Only keep the fingerprints for which we have inchikeys.
-        # Important note: This is not a deep copy!
-        # And the fingerprint is not reset (so it is not always actually matching the most common inchi)
-        new_instance.inchikey_fingerprint_pairs = {inchikey: self.inchikey_fingerprint_pairs[inchikey] for inchikey
-                                                   in new_instance.spectrum_indexes_per_inchikey.keys()}
-        return new_instance
+        self.model_settings = model.model_settings
+        self.embeddings: np.ndarray = compute_embedding_array(model, spectra)
 
+    def add_embeddings(self, embeddings: "Embeddings"):
+        if embeddings.model_settings != self.model_settings:
+            raise ValueError("Model settings of merged embeddings do not match")
+        if not set(embeddings.spectrum_hash_to_index).isdisjoint(self.spectrum_hash_to_index):
+            raise ValueError("There are repeated spectra in the embeddings that are added together")
+        self.embeddings = np.vstack([self.embeddings, embeddings])
+        self.spectrum_hash_to_index += embeddings.spectrum_hash_to_index
+        self.spectrum_hash_to_index = {spectrum_hash: index for index, spectrum_hash in enumerate(self.index_to_spectrum_hash)}
 
-class SpectraWithMS2DeepScoreEmbeddings(SpectraWithFingerprints):
-    def __init__(self, spectra: List[Spectrum], ms2deepscore_model: SiameseSpectralModel, **kwargs):
-        super().__init__(spectra, **kwargs)
-        self.ms2deepscore_model = ms2deepscore_model
-        self.embeddings: np.ndarray = compute_embedding_array(self.ms2deepscore_model, spectra)
-
-    def add_spectra(self, new_spectra: "SpectraWithMS2DeepScoreEmbeddings"):
-        super().add_spectra(new_spectra)
-        if hasattr(new_spectra, "embeddings"):
-            new_embeddings = new_spectra.embeddings
-        else:
-            new_embeddings = compute_embedding_array(self.ms2deepscore_model, new_spectra.spectra)
-        self.embeddings = np.vstack([self.embeddings, new_embeddings])
-
-    def subset_spectra(self, spectrum_indexes) -> "SpectraWithMS2DeepScoreEmbeddings":
-        """Returns a new instance of a subset of the spectra"""
-        new_instance = super().subset_spectra(spectrum_indexes)
-        new_instance.embeddings = self.embeddings[spectrum_indexes]
-        return new_instance
+    def get_embeddings(self, spectra: list[Spectrum]):
+        embedding_indexes = []
+        for spectrum in spectra:
+            embedding_indexes.append(self.spectrum_hash_to_index[spectrum.__hash__()])
+        return self.embeddings[embedding_indexes]
