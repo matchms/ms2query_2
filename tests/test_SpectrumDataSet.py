@@ -3,7 +3,7 @@ import pytest
 from ms2query.benchmarking.SpectrumDataSet import (
     SpectraWithFingerprints,
     SpectraWithMS2DeepScoreEmbeddings,
-    SpectrumSetBase,
+    SpectrumSet,
 )
 from tests.conftest import create_test_spectra, get_inchikey_inchi_pairs, ms2deepscore_model
 
@@ -11,13 +11,13 @@ from tests.conftest import create_test_spectra, get_inchikey_inchi_pairs, ms2dee
 @pytest.mark.parametrize(
     "library",
     [
-        SpectrumSetBase(create_test_spectra()),
+        SpectrumSet(create_test_spectra()),
         SpectraWithFingerprints(create_test_spectra()),
         SpectraWithMS2DeepScoreEmbeddings(create_test_spectra(), ms2deepscore_model()),
     ],
 )
 def test_spectrum_set_base(library):
-    """Test all base functionality of SpectrumSetBase is implemented correctly
+    """Test all base functionality of SpectrumSet is implemented correctly
     also for all classes inheriting from it"""
     # test correct init
     assert len(library.spectra) == 9
@@ -74,7 +74,7 @@ def test_spectra_with_fingerprints(library):
         (get_inchikey_inchi_pairs(3), 3),  # Fully overlapping
         (get_inchikey_inchi_pairs(1), 3),  # Fully overlapping (but not all)
     ):
-        spectra_to_add = SpectrumSetBase(create_test_spectra(2, inchikey_inchi_pairs=inchikey_inchi_pairs))
+        spectra_to_add = SpectrumSet(create_test_spectra(2, inchikey_inchi_pairs=inchikey_inchi_pairs))
         new_copy = library.copy()
         new_copy.add_spectra(spectra_to_add)
         assert len(new_copy.inchikey_fingerprint_pairs) == expected_nr_of_inchikeys
@@ -125,6 +125,6 @@ def test_spectra_with_embeddings():
     for i, index in enumerate(subset_indexes):
         assert np.all(library.embeddings[index] == subset.embeddings[i])
 
-    # Check that subsetting on subset works. To make sure that a subset does not become of type SpectrumSetBase
+    # Check that subsetting on subset works. To make sure that a subset does not become of type SpectrumSet
     subsetted_subset = subset.subset_spectra([0, 1])
     assert subsetted_subset.embeddings.shape == (2, 100)

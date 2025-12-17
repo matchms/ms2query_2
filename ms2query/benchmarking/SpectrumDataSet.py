@@ -8,7 +8,8 @@ from ms2deepscore.models import SiameseSpectralModel, compute_embedding_array
 from tqdm import tqdm
 
 
-class SpectrumSetBase:
+
+class SpectrumSet:
     """Stores a spectrum dataset making it easy and fast to split on molecules"""
 
     def __init__(self, spectra: List[Spectrum], progress_bars=False):
@@ -36,10 +37,10 @@ class SpectrumSetBase:
                 ]
         return updated_inchikeys
 
-    def add_spectra(self, new_spectra: "SpectrumSetBase"):
+    def add_spectra(self, new_spectra: "SpectrumSet"):
         return self._add_spectra_and_group_per_inchikey(new_spectra.spectra)
 
-    def subset_spectra(self, spectrum_indexes) -> "SpectrumSetBase":
+    def subset_spectra(self, spectrum_indexes) -> "SpectrumSet":
         """Returns a new instance of a subset of the spectra"""
         new_instance = copy.copy(self)
         new_instance._spectra = []
@@ -65,7 +66,7 @@ class SpectrumSetBase:
         return new_instance
 
 
-class SpectraWithFingerprints(SpectrumSetBase):
+class SpectraWithFingerprints(SpectrumSet):
     """Stores a spectrum dataset making it easy and fast to split on molecules"""
 
     def __init__(self, spectra: List[Spectrum], fingerprint_type="daylight", nbits=4096):

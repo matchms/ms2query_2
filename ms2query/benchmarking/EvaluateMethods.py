@@ -3,7 +3,7 @@ from typing import Callable, List, Tuple
 import numpy as np
 from matchms.similarity.vector_similarity_functions import jaccard_similarity_matrix
 from tqdm import tqdm
-from ms2query.benchmarking.SpectrumDataSet import SpectraWithFingerprints, SpectrumSetBase
+from ms2query.benchmarking.SpectrumDataSet import SpectraWithFingerprints, SpectrumSet
 
 
 class EvaluateMethods:
@@ -107,7 +107,7 @@ class EvaluateMethods:
 
 
 def predict_between_two_sets(
-    library: SpectrumSetBase, query_set_1: SpectrumSetBase, query_set_2: SpectrumSetBase, prediction_function
+    library: SpectrumSet, query_set_1: SpectrumSet, query_set_2: SpectrumSet, prediction_function
 ):
     """Makes predictions between query sets and the library, with the other query set added.
 
@@ -123,7 +123,7 @@ def predict_between_two_sets(
     return predicted_inchikeys_1 + predicted_inchikeys_2
 
 
-def calculate_average_exact_match_accuracy(spectrum_set: SpectrumSetBase, predicted_inchikeys: List[str]):
+def calculate_average_exact_match_accuracy(spectrum_set: SpectrumSet, predicted_inchikeys: List[str]):
     if len(spectrum_set.spectra) != len(predicted_inchikeys):
         raise ValueError("The number of spectra should be equal to the number of predicted inchikeys ")
     exact_match_accuracy_per_inchikey = []
@@ -139,7 +139,7 @@ def calculate_average_exact_match_accuracy(spectrum_set: SpectrumSetBase, predic
     return sum(exact_match_accuracy_per_inchikey) / len(exact_match_accuracy_per_inchikey)
 
 
-def split_spectrum_set_per_inchikeys(spectrum_set: SpectrumSetBase) -> Tuple[SpectrumSetBase, SpectrumSetBase]:
+def split_spectrum_set_per_inchikeys(spectrum_set: SpectrumSet) -> Tuple[SpectrumSet, SpectrumSet]:
     """Splits a spectrum set into two.
     For each inchikey with more than one spectrum the spectra are divided over the two sets"""
     indexes_set_1 = []
@@ -157,8 +157,8 @@ def split_spectrum_set_per_inchikeys(spectrum_set: SpectrumSetBase) -> Tuple[Spe
 
 
 def split_spectrum_set_per_inchikey_across_ionmodes(
-    spectrum_set: SpectrumSetBase,
-) -> Tuple[SpectrumSetBase, SpectrumSetBase]:
+    spectrum_set: SpectrumSet,
+) -> Tuple[SpectrumSet, SpectrumSet]:
     """Splits a spectrum set in two sets on ionmode. Only uses spectra for inchikeys with at least 1 pos and 1 neg"""
     all_pos_indexes = []
     all_neg_indexes = []
@@ -190,7 +190,7 @@ def split_spectrum_set_per_inchikey_across_ionmodes(
     return pos_val_spectra, neg_val_spectra
 
 
-def subset_spectra_on_ionmode(spectrum_set: SpectrumSetBase, ionmode) -> SpectrumSetBase:
+def subset_spectra_on_ionmode(spectrum_set: SpectrumSet, ionmode) -> SpectrumSet:
     spectrum_indexes_to_keep = []
     for i, spectrum in enumerate(spectrum_set.spectra):
         if spectrum.get("ionmode") == ionmode:
