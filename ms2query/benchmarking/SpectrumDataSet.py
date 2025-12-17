@@ -8,7 +8,6 @@ from ms2deepscore.models import SiameseSpectralModel, compute_embedding_array
 from tqdm import tqdm
 
 
-
 class SpectrumSet:
     """Stores a spectrum dataset making it easy and fast to split on molecules"""
 
