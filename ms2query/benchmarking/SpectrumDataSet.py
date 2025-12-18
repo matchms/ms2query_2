@@ -100,7 +100,7 @@ class Embeddings:
     def __init__(self, spectra: List[Spectrum],
                  model: SiameseSpectralModel):
         self.index_to_spectrum_hash = [spectrum.__hash__() for spectrum in spectra]
-        if set(self.index_to_spectrum_hash) != len(spectra):
+        if len(set(self.index_to_spectrum_hash)) != len(spectra):
             raise ValueError("There are duplicated spectra in the spectrum list")
         self.spectrum_hash_to_index = {spectrum_hash: index for index, spectrum_hash in enumerate(self.index_to_spectrum_hash)}
 
