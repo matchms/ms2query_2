@@ -79,13 +79,13 @@ class SpectrumSet:
         return self._spectra
 
     @property
-    def fingerprints(self):
+    def fingerprints(self) -> "Fingerprints":
         if self._fingerprints is None:
             raise ValueError("First run add_fingerprints")
         return self._fingerprints
 
     @property
-    def embeddings(self):
+    def embeddings(self) -> "Embeddings":
         if self._embeddings is None:
             raise ValueError("First run add_embeddings")
         return self._embeddings
