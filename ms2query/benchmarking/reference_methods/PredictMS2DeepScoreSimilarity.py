@@ -3,9 +3,11 @@ import numpy as np
 from ms2deepscore.vector_operations import cosine_similarity_matrix
 from tqdm import tqdm
 
+from ms2query.benchmarking.SpectrumDataSet import Embeddings
+
 
 def predict_top_ms2deepscores(
-    library_embeddings: np.ndarray, query_embeddings: np.ndarray, batch_size: int = 500, k=1
+    library_embeddings: Embeddings, query_embeddings: Embeddings, batch_size: int = 500, k=1
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Memory efficient way of calculating the highest MS2DeepScores
 
@@ -27,7 +29,7 @@ def predict_top_ms2deepscores(
     """
     top_indexes_per_batch = []
     top_scores_per_batch = []
-    num_of_query_embeddings = query_embeddings.shape[0]
+    num_of_query_embeddings = query_embeddings.embeddings.shape[0]
     # loop over the batches
     for start_idx in tqdm(
         range(0, num_of_query_embeddings, batch_size),
@@ -36,10 +38,11 @@ def predict_top_ms2deepscores(
         + " embeddings",
     ):
         end_idx = min(start_idx + batch_size, num_of_query_embeddings)
-        selected_query_embeddings = query_embeddings[start_idx:end_idx]
-        score_matrix = cosine_similarity_matrix(selected_query_embeddings, library_embeddings)
+        selected_query_embeddings = query_embeddings.embeddings[start_idx:end_idx]
+        score_matrix = cosine_similarity_matrix(selected_query_embeddings, library_embeddings.embeddings)
         top_n_idx = np.argsort(score_matrix, axis=1)[:, -k:][:, ::-1]
         top_n_scores = np.take_along_axis(score_matrix, top_n_idx, axis=1)
         top_indexes_per_batch.append(top_n_idx)
         top_scores_per_batch.append(top_n_scores)
+    # todo refactor to use the Embeddings class and return spectrum hashes instead of indexes
     return np.vstack(top_indexes_per_batch), np.vstack(top_scores_per_batch)

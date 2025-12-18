@@ -1,10 +1,10 @@
 from typing import List, Tuple
 from ms2query.benchmarking.reference_methods.PredictMS2DeepScoreSimilarity import predict_top_ms2deepscores
-from ms2query.benchmarking.SpectrumDataSet import SpectraWithMS2DeepScoreEmbeddings
+from ms2query.benchmarking.SpectrumDataSet import SpectrumSet
 
 
 def predict_highest_ms2deepscore(
-    library_spectra: SpectraWithMS2DeepScoreEmbeddings, query_spectra: SpectraWithMS2DeepScoreEmbeddings
+    library_spectra: SpectrumSet, query_spectra: SpectrumSet
 ) -> Tuple[List[str], List[float]]:
     indexes_of_highest_scores, highest_scores = predict_top_ms2deepscores(
         library_spectra.embeddings, query_spectra.embeddings, k=1
