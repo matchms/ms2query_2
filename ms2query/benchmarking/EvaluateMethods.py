@@ -3,12 +3,12 @@ from typing import Callable, List, Tuple
 import numpy as np
 from matchms.similarity.vector_similarity_functions import jaccard_similarity_matrix
 from tqdm import tqdm
-from ms2query.benchmarking.SpectrumDataSet import SpectraWithFingerprints, SpectrumSet
+from ms2query.benchmarking.SpectrumDataSet import SpectrumSet
 
 
 class EvaluateMethods:
     def __init__(
-        self, training_spectrum_set: SpectraWithFingerprints, validation_spectrum_set: SpectraWithFingerprints
+        self, training_spectrum_set: SpectrumSet, validation_spectrum_set: SpectrumSet
     ):
         self.training_spectrum_set = training_spectrum_set
         self.validation_spectrum_set = validation_spectrum_set
@@ -19,7 +19,7 @@ class EvaluateMethods:
     def benchmark_analogue_search(
         self,
         prediction_function: Callable[
-            [SpectraWithFingerprints, SpectraWithFingerprints], Tuple[List[str], List[float]]
+            [SpectrumSet, SpectrumSet], Tuple[List[str], List[float]]
         ],
     ) -> float:
         predicted_inchikeys, _ = prediction_function(self.training_spectrum_set, self.validation_spectrum_set)
@@ -37,8 +37,8 @@ class EvaluateMethods:
                 if predicted_inchikey is None:
                     prediction_scores.append(0.0)
                 else:
-                    predicted_fingerprint = self.training_spectrum_set.inchikey_fingerprint_pairs[predicted_inchikey]
-                    actual_fingerprint = self.validation_spectrum_set.inchikey_fingerprint_pairs[inchikey]
+                    predicted_fingerprint = self.training_spectrum_set.fingerprints.get_fingerprints([predicted_inchikey])[0]
+                    actual_fingerprint = self.validation_spectrum_set.fingerprints.get_fingerprints([inchikey])[0]
                     tanimoto_for_prediction = calculate_tanimoto_score_between_pair(
                         predicted_fingerprint, actual_fingerprint
                     )
@@ -53,7 +53,7 @@ class EvaluateMethods:
     def benchmark_exact_matching_within_ionmode(
         self,
         prediction_function: Callable[
-            [SpectraWithFingerprints, SpectraWithFingerprints], Tuple[List[str], List[float]]
+            [SpectrumSet, SpectrumSet], Tuple[List[str], List[float]]
         ],
         ionmode: str,
     ) -> float:
@@ -77,7 +77,7 @@ class EvaluateMethods:
     def exact_matches_across_ionization_modes(
         self,
         prediction_function: Callable[
-            [SpectraWithFingerprints, SpectraWithFingerprints], Tuple[List[str], List[float]]
+            [SpectrumSet, SpectrumSet], Tuple[List[str], List[float]]
         ],
     ):
         """Test the accuracy at retrieving exact matches from the library if only available in other ionisation mode
@@ -198,5 +198,5 @@ def subset_spectra_on_ionmode(spectrum_set: SpectrumSet, ionmode) -> SpectrumSet
     return spectrum_set.subset_spectra(spectrum_indexes_to_keep)
 
 
-def calculate_tanimoto_score_between_pair(fingerprint_1: str, fingerprint_2: str) -> float:
+def calculate_tanimoto_score_between_pair(fingerprint_1: np.ndarray, fingerprint_2: np.ndarray) -> float:
     return jaccard_similarity_matrix(np.array([fingerprint_1]), np.array([fingerprint_2]))[0][0]
