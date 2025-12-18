@@ -2,13 +2,16 @@ import numpy as np
 import pytest
 from matchms.filtering.metadata_processing.add_fingerprint import _derive_fingerprint_from_inchi
 
-from ms2query.benchmarking.SpectrumDataSet import Fingerprints
+from ms2query.benchmarking.Fingerprints import Fingerprints, get_similarity_matrix
 from tests.conftest import get_inchikey_inchi_pairs
 
 
 @pytest.fixture
 def dummy_fingerprints():
-    inchikey_inchi_pairs = get_inchikey_inchi_pairs(5)
+    return make_test_fingerprints(5)
+
+def make_test_fingerprints(nr_of_inchikeys=5):
+    inchikey_inchi_pairs = get_inchikey_inchi_pairs(nr_of_inchikeys)
     inchi_per_inchikey = {compound_tuple[0][:14]: compound_tuple[1] for compound_tuple in inchikey_inchi_pairs}
     fingerprints = Fingerprints(inchi_per_inchikey, fingerprint_type="daylight", nbits=100)
     return fingerprints
