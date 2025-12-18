@@ -1,9 +1,8 @@
 import copy
 from collections import Counter, defaultdict
-from typing import Dict, Iterable, List, Optional
+from typing import List
 import numpy as np
 from matchms import Spectrum
-from matchms.filtering.metadata_processing.add_fingerprint import _derive_fingerprint_from_inchi
 from ms2deepscore.models import SiameseSpectralModel, compute_embedding_array
 from tqdm import tqdm
 
@@ -28,9 +27,9 @@ class SpectrumSet:
     def add_spectra(self, new_spectra: "SpectrumSet"):
         updated_inchikeys = self._add_spectra_and_group_per_inchikey(new_spectra.spectra)
         self._update_most_common_inchi_per_inchikey(updated_inchikeys)
-        if self.embeddings is not None:
+        if self._embeddings is not None:
             self.embeddings.add_embeddings(new_spectra.embeddings)
-        if self.fingerprints is not None:
+        if self._fingerprints is not None:
             self.fingerprints.add_new_inchikeys(new_spectra.most_common_inchi_per_inchikey)
 
     def _add_spectra_and_group_per_inchikey(self, spectra: List[Spectrum]):
@@ -50,15 +49,15 @@ class SpectrumSet:
         for inchikey in tqdm(new_inchikeys, desc="Get most common inchi per inchikey"):
             spectra_matching_inchikey = self.spectra_per_inchikey(inchikey)
             most_common_inchi = Counter([spectrum.get("inchi") for spectrum in spectra_matching_inchikey]).most_common(1)[0][0]
-            self.most_common_inchi_per_inchikey[inchikey](most_common_inchi)
+            self.most_common_inchi_per_inchikey[inchikey] = most_common_inchi
 
     def subset_spectra(self, spectrum_indexes) -> "SpectrumSet":
         """Returns a new instance of a subset of the spectra"""
         spectra = [self._spectra[index] for index in spectrum_indexes]
         new_instance = SpectrumSet(spectra, progress_bars=self.progress_bars)
-        if self.embeddings is not None:
+        if self._embeddings is not None:
             new_instance._embeddings = self.embeddings.get_embeddings(spectra)
-        if self.fingerprints is not None:
+        if self._fingerprints is not None:
             inchikeys = [spectrum.get("inchikey")[:14] for spectrum in spectra]
             new_instance._fingerprints = self.fingerprints.subset_fingerprints(inchikeys)
         return new_instance
@@ -81,10 +80,14 @@ class SpectrumSet:
 
     @property
     def fingerprints(self):
+        if self._fingerprints is None:
+            raise ValueError("First run add_fingerprints")
         return self._fingerprints
 
     @property
     def embeddings(self):
+        if self._embeddings is None:
+            raise ValueError("First run add_embeddings")
         return self._embeddings
 
     def copy(self):
