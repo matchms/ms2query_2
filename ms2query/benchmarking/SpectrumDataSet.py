@@ -28,7 +28,7 @@ class SpectrumSet:
         updated_inchikeys = self._add_spectra_and_group_per_inchikey(new_spectra.spectra)
         self._update_most_common_inchi_per_inchikey(updated_inchikeys)
         if self._embeddings is not None:
-            self.embeddings.add_embeddings(new_spectra.embeddings)
+            self._embeddings = Embeddings.combine_embeddings(self.embeddings, new_spectra.embeddings)
         if self._fingerprints is not None:
             self.fingerprints.add_new_inchikeys(new_spectra.most_common_inchi_per_inchikey)
 
