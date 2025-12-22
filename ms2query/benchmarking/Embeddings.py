@@ -56,3 +56,13 @@ class Embeddings:
             spectrum_hashes=tuple(self.index_to_spectrum_hash),
             model_settings=dict(self._model_settings),
         )
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Embeddings):
+            return NotImplemented
+        if self.model_settings != other.model_settings:
+            print("Model setting not equal")
+            return False
+        if self.index_to_spectrum_hash != other.index_to_spectrum_hash:
+            print("index to spectrum hash not equal")
+            return False
+        return np.array_equal(self.embeddings, other.embeddings)
