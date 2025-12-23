@@ -1,4 +1,4 @@
-from ms2query.benchmarking.SpectrumDataSet import (
+from ms2query.benchmarking.AnnotatedSpectrumSet import (
     AnnotatedSpectrumSet,
 )
 from tests.conftest import create_test_spectra, ms2deepscore_model

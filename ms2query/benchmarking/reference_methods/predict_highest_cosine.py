@@ -2,7 +2,7 @@ from typing import List, Tuple
 from matchms import Scores
 from matchms.similarity.CosineGreedy import CosineGreedy
 from matchms.similarity.PrecursorMzMatch import PrecursorMzMatch
-from ms2query.benchmarking.SpectrumDataSet import AnnotatedSpectrumSet
+from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 
 
 def predict_highest_cosine(

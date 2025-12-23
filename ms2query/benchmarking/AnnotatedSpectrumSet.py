@@ -1,4 +1,3 @@
-import copy
 from collections import defaultdict
 from typing import List, Iterable, Optional, Sequence
 from matchms import Spectrum

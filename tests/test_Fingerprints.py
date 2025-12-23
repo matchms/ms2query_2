@@ -3,7 +3,7 @@ import pytest
 from matchms.filtering.metadata_processing.add_fingerprint import _derive_fingerprint_from_inchi
 
 from ms2query.benchmarking.Fingerprints import Fingerprints, get_similarity_matrix
-from ms2query.benchmarking.SpectrumDataSet import AnnotatedSpectrumSet
+from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from tests.conftest import get_inchikey_inchi_pairs, create_test_spectra
 
 

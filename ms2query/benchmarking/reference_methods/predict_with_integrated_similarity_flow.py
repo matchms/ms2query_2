@@ -3,7 +3,7 @@ import numpy as np
 from matchms.similarity.vector_similarity_functions import jaccard_similarity_matrix
 from tqdm import tqdm
 from ms2query.benchmarking.reference_methods.PredictMS2DeepScoreSimilarity import predict_top_ms2deepscores
-from ms2query.benchmarking.SpectrumDataSet import AnnotatedSpectrumSet
+from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 
 
 def predict_with_integrated_similarity_flow(

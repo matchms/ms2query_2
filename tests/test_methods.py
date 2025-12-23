@@ -8,7 +8,7 @@ from ms2query.benchmarking.reference_methods.predict_with_integrated_similarity_
     integrated_similarity_flow,
     predict_with_integrated_similarity_flow,
 )
-from ms2query.benchmarking.SpectrumDataSet import SpectraWithMS2DeepScoreEmbeddings
+from ms2query.benchmarking.AnnotatedSpectrumSet import SpectraWithMS2DeepScoreEmbeddings
 from tests.conftest import create_test_spectra, ms2deepscore_model
 
 

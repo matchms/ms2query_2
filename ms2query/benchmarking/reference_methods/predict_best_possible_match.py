@@ -1,7 +1,7 @@
 from typing import Dict
 import numpy as np
 from matchms.similarity.vector_similarity_functions import jaccard_similarity_matrix
-from ms2query.benchmarking.SpectrumDataSet import AnnotatedSpectrumSet
+from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 
 
 def predict_best_possible_match(library_spectra: AnnotatedSpectrumSet, query_spectra: AnnotatedSpectrumSet):

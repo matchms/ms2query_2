@@ -7,7 +7,7 @@ from ms2query.benchmarking.reference_methods.predict_using_closest_tanimoto impo
     predict_using_closest_tanimoto_single_spectrum,
     select_inchikeys_with_highest_ms2deepscore,
 )
-from ms2query.benchmarking.SpectrumDataSet import SpectraWithFingerprints, SpectraWithMS2DeepScoreEmbeddings
+from ms2query.benchmarking.AnnotatedSpectrumSet import SpectraWithFingerprints, SpectraWithMS2DeepScoreEmbeddings
 from tests.conftest import create_test_spectra, ms2deepscore_model
 
 

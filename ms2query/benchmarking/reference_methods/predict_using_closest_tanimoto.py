@@ -2,7 +2,7 @@ from typing import List, Tuple
 import numpy as np
 from ms2deepscore.vector_operations import cosine_similarity_matrix
 from tqdm import tqdm
-from ms2query.benchmarking.SpectrumDataSet import AnnotatedSpectrumSet
+from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.metrics import generalized_tanimoto_similarity_matrix
 
 
