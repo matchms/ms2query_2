@@ -23,7 +23,10 @@ class AnnotatedSpectrumSet:
     def create_spectrum_set(cls, spectra: tuple[Spectrum], progress_bars=False):
         spectrum_indexes_per_inchikey = defaultdict(list)
         for spectrum_index, spectrum in enumerate(spectra):
-            spectrum_indexes_per_inchikey[spectrum.get("inchikey")[:14]].append(spectrum_index)
+            inchikey = spectrum.get("inchikey")
+            if inchikey is None:
+                raise ValueError("Annotated Spectrum set expects spectra that all have an inchikey")
+            spectrum_indexes_per_inchikey[inchikey[:14]].append(spectrum_index)
         return cls(spectra, spectrum_indexes_per_inchikey, progress_bars=progress_bars)
 
     def __add__(self, other) -> "AnnotatedSpectrumSet":
