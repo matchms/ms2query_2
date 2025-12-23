@@ -4,7 +4,7 @@ from tqdm import tqdm
 from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 
 
-class EvaluateExactMatchSearch:
+class EvaluateExactMatchSearchAcrossIonmodes:
     def __init__(
         self, training_spectrum_set: AnnotatedSpectrumSet,
             validation_spectrum_set: AnnotatedSpectrumSet,
@@ -12,12 +12,6 @@ class EvaluateExactMatchSearch:
         self.training_spectrum_set = training_spectrum_set
         (self.pos_validation_spectra,
          self.neg_validation_spectra) = split_spectrum_set_per_inchikey_across_ionmodes(validation_spectrum_set)
-
-        self.pos_split_per_inchikey_set_1, self.pos_split_per_inchikey_set_2 = split_spectrum_set_per_inchikeys(
-            self.pos_validation_spectra)
-
-        self.neg_split_per_inchikey_set_1, self.neg_split_per_inchikey_set_2 = split_spectrum_set_per_inchikeys(
-            self.neg_validation_spectra)
 
     def pos_in_neg(self, prediction_function: Callable[
             [AnnotatedSpectrumSet, AnnotatedSpectrumSet], Tuple[List[str], List[float]]
@@ -31,6 +25,18 @@ class EvaluateExactMatchSearch:
         return get_exact_match_accuracy(self.neg_validation_spectra,
                                         prediction_function(self.training_spectrum_set + self.pos_validation_spectra,
                                                             self.neg_validation_spectra))
+
+class EvaluateExactMatchSearchWithinIonmodes:
+    def __init__(
+            self, training_spectrum_set: AnnotatedSpectrumSet,
+            validation_spectrum_set: AnnotatedSpectrumSet,
+    ):
+        self.training_spectrum_set = training_spectrum_set
+        self.pos_split_per_inchikey_set_1, self.pos_split_per_inchikey_set_2 = split_spectrum_set_per_inchikeys(
+            subset_spectra_on_ionmode(validation_spectrum_set, "positive"))
+
+        self.neg_split_per_inchikey_set_1, self.neg_split_per_inchikey_set_2 = split_spectrum_set_per_inchikeys(
+            subset_spectra_on_ionmode(validation_spectrum_set, "negative"))
 
     def neg_in_neg(self, prediction_function: Callable[
             [AnnotatedSpectrumSet, AnnotatedSpectrumSet], Tuple[List[str], List[float]]
@@ -56,7 +62,6 @@ class EvaluateExactMatchSearch:
             self.pos_split_per_inchikey_set_1,
             prediction_function(self.training_spectrum_set + self.pos_split_per_inchikey_set_2,
                                 self.pos_split_per_inchikey_set_1))
-
         return (accuracy_set_2 + accuracy_set_1) / 2
 
 def get_exact_match_accuracy(query_spectrum_set, predicted_inchikeys):
