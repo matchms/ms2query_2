@@ -1,4 +1,4 @@
-from typing import List
+from typing import Sequence
 
 import numpy as np
 from matchms import Spectrum
@@ -16,7 +16,7 @@ class Embeddings:
         self._embeddings = embeddings
 
     @classmethod
-    def create_from_spectra(cls, spectra: List[Spectrum],
+    def create_from_spectra(cls, spectra: Sequence[Spectrum],
                  model: SiameseSpectralModel) -> "Embeddings":
         index_to_spectrum_hash = tuple(spectrum.__hash__() for spectrum in spectra)
         if len(set(index_to_spectrum_hash)) != len(spectra):
