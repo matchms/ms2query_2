@@ -8,7 +8,7 @@ from ms2query.benchmarking.reference_methods.predict_with_integrated_similarity_
     integrated_similarity_flow,
     predict_with_integrated_similarity_flow,
 )
-from ms2query.benchmarking.AnnotatedSpectrumSet import SpectraWithMS2DeepScoreEmbeddings
+from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from tests.conftest import create_test_spectra, ms2deepscore_model
 
 
@@ -22,8 +22,11 @@ from tests.conftest import create_test_spectra, ms2deepscore_model
 )
 def test_all_methods(prediction_function):
     model = ms2deepscore_model()
-    library_spectra = SpectraWithMS2DeepScoreEmbeddings(create_test_spectra(), model)
-    test_spectra = SpectraWithMS2DeepScoreEmbeddings(create_test_spectra(1), model)
+
+    library_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra())
+    test_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(1))
+    library_spectra.add_embeddings(model)
+    test_spectra.add_embeddings(model)
     predicted_inchikeys, scores = prediction_function(library_spectra, test_spectra)
     for i, spectrum in enumerate(test_spectra.spectra):
         inchikey = spectrum.get("inchikey")[:14]
@@ -33,8 +36,10 @@ def test_all_methods(prediction_function):
 
 def test_predict_with_integrated_similarity_flow():
     model = ms2deepscore_model()
-    library_spectra = SpectraWithMS2DeepScoreEmbeddings(create_test_spectra(), model)
-    test_spectra = SpectraWithMS2DeepScoreEmbeddings(create_test_spectra(1), model)
+    library_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra())
+    test_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(1))
+    library_spectra.add_embeddings(model)
+    test_spectra.add_embeddings(model)
     predicted_inchikeys, scores = predict_with_integrated_similarity_flow(library_spectra, test_spectra)
 
     assert predicted_inchikeys == ["RYYVLZVUVIJVGH", "ZPUCINDJVBIVPJ", "ZPUCINDJVBIVPJ"]

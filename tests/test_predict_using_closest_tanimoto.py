@@ -7,15 +7,17 @@ from ms2query.benchmarking.reference_methods.predict_using_closest_tanimoto impo
     predict_using_closest_tanimoto_single_spectrum,
     select_inchikeys_with_highest_ms2deepscore,
 )
-from ms2query.benchmarking.AnnotatedSpectrumSet import SpectraWithFingerprints, SpectraWithMS2DeepScoreEmbeddings
+from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from tests.conftest import create_test_spectra, ms2deepscore_model
 
 
 def test_predict_using_closest_tanimoto():
     """Only very basic test that the function runs and that the output is the right format"""
     model = ms2deepscore_model()
-    library_spectra = SpectraWithMS2DeepScoreEmbeddings(create_test_spectra(nr_of_inchikeys=7), model)
-    test_spectra = SpectraWithMS2DeepScoreEmbeddings(create_test_spectra(1, nr_of_inchikeys=3), model)
+    library_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(nr_of_inchikeys=7))
+    test_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(1, nr_of_inchikeys=3))
+    library_spectra.add_embeddings(model)
+    test_spectra.add_embeddings(model)
     predicted_inchikeys, scores = predict_using_closest_tanimoto(library_spectra, test_spectra, 3, 3)
 
     assert isinstance(predicted_inchikeys, list)
@@ -26,8 +28,10 @@ def test_predict_using_closest_tanimoto():
 def test_predict_using_closest_tanimoto_single_spectrum():
     """Only very basic test that the function runs and that the output is the right format"""
     model = ms2deepscore_model()
-    library_spectra = SpectraWithMS2DeepScoreEmbeddings(create_test_spectra(nr_of_inchikeys=7), model)
-    test_spectra = SpectraWithMS2DeepScoreEmbeddings(create_test_spectra(1, nr_of_inchikeys=1), model)
+    library_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(nr_of_inchikeys=7))
+    test_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(1, nr_of_inchikeys=3))
+    library_spectra.add_embeddings(model)
+    test_spectra.add_embeddings(model)
     predicted_inchikey, score = predict_using_closest_tanimoto_single_spectrum(library_spectra, test_spectra, 3, 3)
 
     assert isinstance(predicted_inchikey, str)
@@ -36,7 +40,7 @@ def test_predict_using_closest_tanimoto_single_spectrum():
 
 def test_select_inchikeys_with_highest_ms2deepscore():
     test_spectra = create_test_spectra(nr_of_inchikeys=7)
-    spectra = SpectraWithFingerprints(test_spectra)
+    spectra = AnnotatedSpectrumSet.create_spectrum_set(test_spectra)
 
     ms2deepscores = np.zeros(len(test_spectra))
     ms2deepscores[2] = 0.4
@@ -51,7 +55,7 @@ def test_get_average_predictions_for_closely_related_metabolites():
     test_spectra = create_test_spectra(nr_of_inchikeys=7)
     # Select different number per inchikey (only one for the first) to check that it is correctly weighted.
     test_spectra = test_spectra.copy()[2:]
-    spectra = SpectraWithFingerprints(test_spectra)
+    spectra = AnnotatedSpectrumSet.create_spectrum_set(test_spectra)
 
     inchikeys = list(spectra.inchikey_fingerprint_pairs.keys())[:3]
     ms2deepscores = np.zeros(len(spectra.spectra))
@@ -71,8 +75,8 @@ def test_get_average_predictions_for_closely_related_metabolites():
     [1, 3, 7],
 )
 def test_get_inchikey_and_tanimoto_scores_for_top_k(k):
-    spectra = SpectraWithFingerprints(create_test_spectra(nr_of_inchikeys=7))
-    inchikey = list(spectra.inchikey_fingerprint_pairs.keys())[2]
+    spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(nr_of_inchikeys=7))
+    inchikey = spectra.inchikeys[2]
 
     top_inchikeys, tanimoto_scores_for_top_k = get_inchikey_and_tanimoto_scores_for_top_k(
         spectra, inchikey,k)
