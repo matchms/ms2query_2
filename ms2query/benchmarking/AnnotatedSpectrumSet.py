@@ -80,6 +80,10 @@ class AnnotatedSpectrumSet:
             raise ValueError("First run add_embeddings")
         return self._embeddings
 
+    @property
+    def inchikeys(self):
+        return tuple(self.spectrum_indexes_per_inchikey.keys())
+
     def __copy__(self):
         return AnnotatedSpectrumSet(self.spectra,
                                     self.spectrum_indexes_per_inchikey,
