@@ -19,7 +19,7 @@ class AnnotatedSpectrumSet:
         self._embeddings = embeddings
 
     @classmethod
-    def create_spectrum_set(cls, spectra: Sequence[Spectrum], progress_bars=False):
+    def create_spectrum_set(cls, spectra: Sequence[Spectrum], progress_bars=False) -> "AnnotatedSpectrumSet":
         spectrum_indexes_per_inchikey = defaultdict(list)
         for spectrum_index, spectrum in enumerate(spectra):
             inchikey = spectrum.get("inchikey")
