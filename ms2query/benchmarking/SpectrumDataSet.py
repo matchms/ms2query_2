@@ -1,55 +1,55 @@
 import copy
-from collections import Counter, defaultdict
-from typing import List
+from collections import defaultdict
+from typing import List, Iterable, Optional
 from matchms import Spectrum
 from ms2deepscore.models import SiameseSpectralModel
-from tqdm import tqdm
 
 from ms2query.benchmarking.Embeddings import Embeddings
-from ms2query.benchmarking.Fingerprints import Fingerprints
 
 
 class SpectrumSet:
     """Stores a spectrum dataset making it easy and fast to split on molecules"""
-
-    def __init__(self, spectra: List[Spectrum], progress_bars=False):
-        self._spectra = []
-        self.spectrum_indexes_per_inchikey = defaultdict(list)
+    def __init__(self,
+                 spectra: tuple[Spectrum, ...],
+                 spectrum_indexes_per_inchikey: dict[str, Iterable],
+                 embeddings: Optional[Embeddings] = None,
+                 progress_bars=False):
+        self._spectra = tuple(spectra)
+        self.spectrum_indexes_per_inchikey: dict[str, tuple[int]] = {key: tuple(values) for key, values in spectrum_indexes_per_inchikey.items()}
         self.progress_bars = progress_bars
-        # init spectra
-        self._add_spectra_and_group_per_inchikey(spectra)
-        self.most_common_inchi_per_inchikey = {}
-        self._update_most_common_inchi_per_inchikey(list(self.spectrum_indexes_per_inchikey.keys()))
+        self._embeddings = embeddings
 
-        self._fingerprints = None
-        self._embeddings = None
+    @classmethod
+    def create_spectrum_set(cls, spectra: tuple[Spectrum], progress_bars=False):
+        spectrum_indexes_per_inchikey = defaultdict(list)
+        for spectrum_index, spectrum in enumerate(spectra):
+            spectrum_indexes_per_inchikey[spectrum.get("inchikey")[:14]].append(spectrum_index)
+        return cls(spectra, spectrum_indexes_per_inchikey, progress_bars=progress_bars)
 
-    def add_spectra(self, new_spectra: "SpectrumSet"):
-        updated_inchikeys = self._add_spectra_and_group_per_inchikey(new_spectra.spectra)
-        self._update_most_common_inchi_per_inchikey(updated_inchikeys)
-        if self._embeddings is not None:
-            self._embeddings = Embeddings.combine_embeddings(self.embeddings, new_spectra.embeddings)
-        if self._fingerprints is not None:
-            self.fingerprints.add_new_inchikeys(new_spectra.most_common_inchi_per_inchikey)
+    def __add__(self, other) -> "SpectrumSet":
+        """Adds two spectrum sets together"""
+        if not isinstance(other, SpectrumSet):
+            return NotImplemented
+        spectra = self.spectra + other.spectra
+        # update spectrum_indexes_per_inchikey
+        starting_index = len(self.spectra)
+        reindexed_indexes_per_inchikey = {}
+        for inchikey, list_of_spectrum_indexes in other.spectrum_indexes_per_inchikey.items():
+            reindexed_indexes_per_inchikey[inchikey] = [v + starting_index for v in list_of_spectrum_indexes]
+        # combine indexes
+        spectrum_indexes_per_inchikey = defaultdict(list)
+        for indexes_per_inchikey in (self.spectrum_indexes_per_inchikey, reindexed_indexes_per_inchikey):
+            for inchikey, indexes in indexes_per_inchikey.items():
+                spectrum_indexes_per_inchikey[inchikey].extend(indexes)
 
-    def _add_spectra_and_group_per_inchikey(self, spectra: List[Spectrum]):
-        starting_index = len(self._spectra)
-        updated_inchikeys = set()
-        for i, spectrum in enumerate(
-            tqdm(spectra, desc="Adding spectra and grouping per Inchikey", disable=not self.progress_bars)
-        ):
-            self._spectra.append(spectrum)
-            spectrum_index = starting_index + i
-            inchikey = spectrum.get("inchikey")[:14]
-            updated_inchikeys.add(inchikey)
-            self.spectrum_indexes_per_inchikey[inchikey].append(spectrum_index)
-        return updated_inchikeys
-
-    def _update_most_common_inchi_per_inchikey(self, new_inchikeys):
-        for inchikey in tqdm(new_inchikeys, desc="Get most common inchi per inchikey"):
-            spectra_matching_inchikey = self.spectra_per_inchikey(inchikey)
-            most_common_inchi = Counter([spectrum.get("inchi") for spectrum in spectra_matching_inchikey]).most_common(1)[0][0]
-            self.most_common_inchi_per_inchikey[inchikey] = most_common_inchi
+        # combine embeddings
+        embeddings = None
+        if self.embeddings and self.embeddings:
+            embeddings = Embeddings.combine_embeddings(self.embeddings, other.embeddings)
+        return SpectrumSet(spectra,
+                           spectrum_indexes_per_inchikey,
+                           embeddings=embeddings,
+                           progress_bars=self.progress_bars)
 
     def subset_spectra(self, spectrum_indexes) -> "SpectrumSet":
         """Returns a new instance of a subset of the spectra"""
@@ -57,9 +57,6 @@ class SpectrumSet:
         new_instance = SpectrumSet(spectra, progress_bars=self.progress_bars)
         if self._embeddings is not None:
             new_instance._embeddings = self.embeddings.subset_embeddings(spectra)
-        if self._fingerprints is not None:
-            inchikeys = [spectrum.get("inchikey")[:14] for spectrum in spectra]
-            new_instance._fingerprints = self.fingerprints.subset_fingerprints(inchikeys)
         return new_instance
 
     def spectra_per_inchikey(self, inchikey) -> List[Spectrum]:
@@ -71,18 +68,9 @@ class SpectrumSet:
     def add_embeddings(self, model: SiameseSpectralModel):
         self._embeddings = Embeddings.create_from_spectra(self._spectra, model)
 
-    def add_fingerprints(self, fingerprint_type, nbits):
-        self._fingerprints = Fingerprints(self.most_common_inchi_per_inchikey, fingerprint_type, nbits)
-
     @property
     def spectra(self):
         return self._spectra
-
-    @property
-    def fingerprints(self) -> "Fingerprints":
-        if self._fingerprints is None:
-            raise ValueError("First run add_fingerprints")
-        return self._fingerprints
 
     @property
     def embeddings(self) -> "Embeddings":
