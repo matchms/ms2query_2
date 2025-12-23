@@ -1,8 +1,11 @@
+from collections import Counter
+
 import numpy as np
 import pandas as pd
 from matchms.filtering.metadata_processing.add_fingerprint import _derive_fingerprint_from_inchi
 from tqdm import tqdm
 
+from ms2query.benchmarking.SpectrumDataSet import SpectrumSet
 from ms2query.metrics import generalized_tanimoto_similarity_matrix
 
 
@@ -29,6 +32,15 @@ class Fingerprints:
                 raise ValueError(f"Fingerprint could not be set for InChI: {most_common_inchi_per_inchikey[inchikey]}")
             fingerprints[inchikey_index, :] = fingerprint
         return cls(fingerprints, index_to_inchikey, fingerprint_type)
+
+    @classmethod
+    def from_spectrum_set(cls, spectrum_set: SpectrumSet, fingerprint_type, nbits):
+        most_common_inchi_per_inchikey = {}
+        for inchikey, spectrum_indexes in tqdm(spectrum_set.spectrum_indexes_per_inchikey.items(), desc="Get most common inchi per inchikey"):
+            spectra_matching_inchikey = [spectrum_set.spectra[index] for index in spectrum_indexes]
+            most_common_inchi = Counter([spectrum.get("inchi") for spectrum in spectra_matching_inchikey]).most_common(1)[0][0]
+            most_common_inchi_per_inchikey[inchikey] = most_common_inchi
+        return cls.compute_fingerprints_from_inchi(most_common_inchi_per_inchikey, fingerprint_type, nbits)
 
     @classmethod
     def combine_fingerprints(cls, fingerprints_1: "Fingerprints",
