@@ -14,7 +14,7 @@ class SpectrumSet:
                  spectrum_indexes_per_inchikey: dict[str, Iterable],
                  embeddings: Optional[Embeddings] = None,
                  progress_bars=False):
-        self._spectra = tuple(spectra)
+        self._spectra = tuple([spectrum.clone() for spectrum in spectra])
         self.spectrum_indexes_per_inchikey: dict[str, tuple[int]] = {key: tuple(values) for key, values in spectrum_indexes_per_inchikey.items()}
         self.progress_bars = progress_bars
         self._embeddings = embeddings
@@ -78,11 +78,18 @@ class SpectrumSet:
             raise ValueError("First run add_embeddings")
         return self._embeddings
 
-    def copy(self):
-        """This copy method ensures all spectra are"""
-        new_instance = copy.copy(self)
-        new_instance._spectra = self._spectra.copy()
-        new_instance.spectrum_indexes_per_inchikey = copy.deepcopy(self.spectrum_indexes_per_inchikey)
-        return new_instance
+    def __copy__(self):
+        return SpectrumSet(self.spectra,
+                           self.spectrum_indexes_per_inchikey,
+                           self.embeddings,
+                           progress_bars=self.progress_bars)
 
-
+    def __eq__(self, other):
+        if not isinstance(other, SpectrumSet):
+            raise NotImplemented
+        if self.spectra != other.spectra:
+            return False
+        if self.spectrum_indexes_per_inchikey != other.spectrum_indexes_per_inchikey:
+            return False
+        if self.embeddings != other.embeddings:
+            return False
