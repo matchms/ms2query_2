@@ -1,6 +1,6 @@
 import copy
 from collections import defaultdict
-from typing import List, Iterable, Optional
+from typing import List, Iterable, Optional, Sequence
 from matchms import Spectrum
 from ms2deepscore.models import SiameseSpectralModel
 
@@ -10,7 +10,7 @@ from ms2query.benchmarking.Embeddings import Embeddings
 class AnnotatedSpectrumSet:
     """Stores a spectrum dataset making it easy and fast to split on molecules"""
     def __init__(self,
-                 spectra: tuple[Spectrum, ...],
+                 spectra: Sequence[Spectrum],
                  spectrum_indexes_per_inchikey: dict[str, Iterable],
                  embeddings: Optional[Embeddings] = None,
                  progress_bars=False):
@@ -20,7 +20,7 @@ class AnnotatedSpectrumSet:
         self._embeddings = embeddings
 
     @classmethod
-    def create_spectrum_set(cls, spectra: tuple[Spectrum], progress_bars=False):
+    def create_spectrum_set(cls, spectra: Sequence[Spectrum], progress_bars=False):
         spectrum_indexes_per_inchikey = defaultdict(list)
         for spectrum_index, spectrum in enumerate(spectra):
             inchikey = spectrum.get("inchikey")
@@ -47,7 +47,7 @@ class AnnotatedSpectrumSet:
 
         # combine embeddings
         embeddings = None
-        if self.embeddings and self.embeddings:
+        if self._embeddings and other._embeddings:
             embeddings = Embeddings.combine_embeddings(self.embeddings, other.embeddings)
         return AnnotatedSpectrumSet(spectra,
                                     spectrum_indexes_per_inchikey,
@@ -57,7 +57,7 @@ class AnnotatedSpectrumSet:
     def subset_spectra(self, spectrum_indexes) -> "AnnotatedSpectrumSet":
         """Returns a new instance of a subset of the spectra"""
         spectra = [self._spectra[index] for index in spectrum_indexes]
-        new_instance = AnnotatedSpectrumSet(spectra, progress_bars=self.progress_bars)
+        new_instance = AnnotatedSpectrumSet.create_spectrum_set(spectra, progress_bars=self.progress_bars)
         if self._embeddings is not None:
             new_instance._embeddings = self.embeddings.subset_embeddings(spectra)
         return new_instance
@@ -87,12 +87,13 @@ class AnnotatedSpectrumSet:
                                     self.embeddings,
                                     progress_bars=self.progress_bars)
 
-    def __eq__(self, other):
+    def __eq__(self, other: "AnnotatedSpectrumSet"):
         if not isinstance(other, AnnotatedSpectrumSet):
             raise NotImplemented
         if self.spectra != other.spectra:
             return False
         if self.spectrum_indexes_per_inchikey != other.spectrum_indexes_per_inchikey:
             return False
-        if self.embeddings != other.embeddings:
+        if self._embeddings != other._embeddings:
             return False
+        return True
