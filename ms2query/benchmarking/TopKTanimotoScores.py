@@ -33,9 +33,9 @@ class TopKTanimotoScores:
         """Gets the top k highest inchikeys and scores for each inchikey in query_fingerprints from target_fingerprints"""
         similarity_scores = generalized_tanimoto_similarity_matrix(query_fingerprints.fingerprints, target_fingerprints.fingerprints)
         inchikey_indexes_of_top_k = np.argpartition(similarity_scores, -k, axis=1)[:, -k:]
-        top_k_inchikeys = target_fingerprints.index_to_inchikey[inchikey_indexes_of_top_k]
+        top_k_inchikeys = target_fingerprints.inchikeys[inchikey_indexes_of_top_k]
         tanimoto_scores_for_top_k = similarity_scores[np.arange(similarity_scores.shape[0])[:, None], inchikey_indexes_of_top_k]
-        return cls(tanimoto_scores_for_top_k, top_k_inchikeys, query_fingerprints.index_to_inchikey)
+        return cls(tanimoto_scores_for_top_k, top_k_inchikeys, query_fingerprints.inchikeys)
 
     def select_top_k_inchikeys_and_scores(self, inchikey):
         """Returns a DF with inchikeys and scores"""

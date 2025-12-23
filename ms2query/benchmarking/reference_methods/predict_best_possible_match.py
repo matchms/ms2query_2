@@ -32,14 +32,14 @@ def calculate_highest_tanimoto_score_per_inchikey(
     indexes_of_highest_scores = tanimoto_scores.argmax(axis=0)
 
     highest_possible_score_per_inchikey = dict()
-    for i, inchikey in enumerate(query_spectra.fingerprints.index_to_inchikey):
+    for i, inchikey in enumerate(query_spectra.fingerprints.inchikeys):
         # Check if inchikey in library (To correctly handle the exact matching case)
-        if inchikey in library_spectra.fingerprints.index_to_inchikey:
+        if inchikey in library_spectra.fingerprints.inchikeys:
             highest_possible_score_per_inchikey[inchikey] = (inchikey, 1.0)
             continue
 
         highest_possible_score_per_inchikey[inchikey] = (
-            library_spectra.fingerprints.index_to_inchikey[indexes_of_highest_scores[i]],
+            library_spectra.fingerprints.inchikeys[indexes_of_highest_scores[i]],
             highest_scores[i],
         )
     return highest_possible_score_per_inchikey

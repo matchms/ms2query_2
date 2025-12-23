@@ -75,5 +75,5 @@ def get_inchikey_and_tanimoto_scores_for_top_k(spectra: SpectrumSet, inchikey, k
     inchikey_indexes_of_top_k = np.argpartition(similarity_scores, -k)[-k:]
     tanimoto_scores_for_top_k = similarity_scores[inchikey_indexes_of_top_k]
 
-    top_inchikeys = [spectra.fingerprints.index_to_inchikey[inchikey_index] for inchikey_index in inchikey_indexes_of_top_k]
+    top_inchikeys = [spectra.fingerprints.inchikeys[inchikey_index] for inchikey_index in inchikey_indexes_of_top_k]
     return top_inchikeys, tanimoto_scores_for_top_k
