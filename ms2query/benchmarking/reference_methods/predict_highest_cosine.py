@@ -2,11 +2,11 @@ from typing import List, Tuple
 from matchms import Scores
 from matchms.similarity.CosineGreedy import CosineGreedy
 from matchms.similarity.PrecursorMzMatch import PrecursorMzMatch
-from ms2query.benchmarking.SpectrumDataSet import SpectrumSet
+from ms2query.benchmarking.SpectrumDataSet import AnnotatedSpectrumSet
 
 
 def predict_highest_cosine(
-    library_spectra: SpectrumSet, query_spectra: SpectrumSet
+    library_spectra: AnnotatedSpectrumSet, query_spectra: AnnotatedSpectrumSet
 ) -> Tuple[List[str], List[float]]:
 
     scores = Scores(references=library_spectra.spectra, queries=query_spectra.spectra, is_symmetric=False)

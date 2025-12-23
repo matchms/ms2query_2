@@ -2,12 +2,12 @@ from typing import List, Tuple
 import numpy as np
 from ms2deepscore.vector_operations import cosine_similarity_matrix
 from tqdm import tqdm
-from ms2query.benchmarking.SpectrumDataSet import SpectrumSet
+from ms2query.benchmarking.SpectrumDataSet import AnnotatedSpectrumSet
 from ms2query.metrics import generalized_tanimoto_similarity_matrix
 
 
 def predict_using_closest_tanimoto(
-    library_spectra: SpectrumSet, query_spectra: SpectrumSet,
+    library_spectra: AnnotatedSpectrumSet, query_spectra: AnnotatedSpectrumSet,
         nr_of_closest_inchikeys_to_select=10,
         nr_of_inchikeys_with_highest_ms2deepscore_to_select=100
 ) -> Tuple[List[str], List[float]]:
@@ -26,7 +26,7 @@ def predict_using_closest_tanimoto(
 
 
 def predict_using_closest_tanimoto_single_spectrum(
-        spectra_with_embeddings: SpectrumSet, single_spectrum_with_embeddings: SpectrumSet,
+        spectra_with_embeddings: AnnotatedSpectrumSet, single_spectrum_with_embeddings: AnnotatedSpectrumSet,
         nr_of_closest_inchikeys_to_select, nr_of_inchikeys_with_highest_ms2deepscore_to_select) -> Tuple[str, float]:
     if len(single_spectrum_with_embeddings.spectra) != 1:
         raise ValueError("expected a single spectrum")
@@ -45,7 +45,7 @@ def predict_using_closest_tanimoto_single_spectrum(
     inchikey_with_highest_average_prediction, score = max(average_predicted_scores.items(), key=lambda item: item[1])
     return inchikey_with_highest_average_prediction, score
 
-def select_inchikeys_with_highest_ms2deepscore(spectra_with_embeddings: SpectrumSet, ms2deepscores, nr_of_inchikeys_to_select=10):
+def select_inchikeys_with_highest_ms2deepscore(spectra_with_embeddings: AnnotatedSpectrumSet, ms2deepscores, nr_of_inchikeys_to_select=10):
     highest_score_for_inchikey = []
     for inchikey, spectrum_indexes in spectra_with_embeddings.spectrum_indexes_per_inchikey.items():
         all_ms2deepscores_for_inchikey = ms2deepscores[spectrum_indexes]
@@ -68,7 +68,7 @@ def get_average_predictions_for_closely_related_metabolites(spectra_with_embeddi
     average_predicted_score = sum(average_predicted_scores) / len(average_predicted_scores)
     return average_predicted_score
 
-def get_inchikey_and_tanimoto_scores_for_top_k(spectra: SpectrumSet, inchikey, k
+def get_inchikey_and_tanimoto_scores_for_top_k(spectra: AnnotatedSpectrumSet, inchikey, k
                                                ) -> tuple[list[str], np.ndarray]:
     """For an inchikey in a library the top k highest tanimoto scores in the library are predicted (including itself)"""
     similarity_scores = generalized_tanimoto_similarity_matrix(spectra.fingerprints.get_fingerprints(inchikey), spectra.fingerprints.fingerprints)[0]

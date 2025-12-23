@@ -3,12 +3,12 @@ import numpy as np
 from matchms.similarity.vector_similarity_functions import jaccard_similarity_matrix
 from tqdm import tqdm
 from ms2query.benchmarking.reference_methods.PredictMS2DeepScoreSimilarity import predict_top_ms2deepscores
-from ms2query.benchmarking.SpectrumDataSet import SpectrumSet
+from ms2query.benchmarking.SpectrumDataSet import AnnotatedSpectrumSet
 
 
 def predict_with_integrated_similarity_flow(
-    library_spectra: SpectrumSet,
-    query_spectra: SpectrumSet,
+    library_spectra: AnnotatedSpectrumSet,
+    query_spectra: AnnotatedSpectrumSet,
     number_of_analogues_to_consider=50,
 ) -> Tuple[List[str], List[float]]:
 
@@ -30,7 +30,7 @@ def predict_with_integrated_similarity_flow(
 
 
 def get_highest_isf(
-    library_spectra: SpectrumSet,
+    library_spectra: AnnotatedSpectrumSet,
     indexes_of_library_spectra_with_highest_score: np.ndarray,
     predicted_scores: [List[float]],
 ):

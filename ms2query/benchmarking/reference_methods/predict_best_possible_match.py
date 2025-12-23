@@ -1,10 +1,10 @@
 from typing import Dict
 import numpy as np
 from matchms.similarity.vector_similarity_functions import jaccard_similarity_matrix
-from ms2query.benchmarking.SpectrumDataSet import SpectrumSet
+from ms2query.benchmarking.SpectrumDataSet import AnnotatedSpectrumSet
 
 
-def predict_best_possible_match(library_spectra: SpectrumSet, query_spectra: SpectrumSet):
+def predict_best_possible_match(library_spectra: AnnotatedSpectrumSet, query_spectra: AnnotatedSpectrumSet):
     highest_possible_score_per_inchikey = calculate_highest_tanimoto_score_per_inchikey(library_spectra, query_spectra)
 
     inchikeys_of_best_match = []
@@ -20,7 +20,7 @@ def predict_best_possible_match(library_spectra: SpectrumSet, query_spectra: Spe
 
 
 def calculate_highest_tanimoto_score_per_inchikey(
-    library_spectra: SpectrumSet, query_spectra: SpectrumSet
+    library_spectra: AnnotatedSpectrumSet, query_spectra: AnnotatedSpectrumSet
 ) -> Dict[str, tuple[str, float]]:
     """Finds the best possible match during an analogue search"""
     print("Calculating tanimoto scores to determine best possible match")

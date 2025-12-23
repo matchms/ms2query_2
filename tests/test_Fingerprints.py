@@ -3,7 +3,7 @@ import pytest
 from matchms.filtering.metadata_processing.add_fingerprint import _derive_fingerprint_from_inchi
 
 from ms2query.benchmarking.Fingerprints import Fingerprints, get_similarity_matrix
-from ms2query.benchmarking.SpectrumDataSet import SpectrumSet
+from ms2query.benchmarking.SpectrumDataSet import AnnotatedSpectrumSet
 from tests.conftest import get_inchikey_inchi_pairs, create_test_spectra
 
 
@@ -70,7 +70,7 @@ def test_combine_fingerprints_with_replacing():
 
 def test_fingerprint_from_spectra():
     test_spectra = create_test_spectra(2, nr_of_inchikeys=3)
-    spectrum_set = SpectrumSet.create_spectrum_set(test_spectra)
+    spectrum_set = AnnotatedSpectrumSet.create_spectrum_set(test_spectra)
     fingerprints = Fingerprints.from_spectrum_set(spectrum_set, "daylight", 2048)
     fingerprints_from_inchi = Fingerprints.compute_fingerprints_from_inchi(get_inchikey_inchi_dict(3),"daylight", 2048)
     assert fingerprints == fingerprints_from_inchi
