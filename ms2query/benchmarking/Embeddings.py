@@ -31,6 +31,7 @@ class Embeddings:
         if embeddings_1.model_settings != embeddings_2.model_settings:
             raise ValueError("Model settings of merged embeddings do not match")
         if not set(embeddings_1.index_to_spectrum_hash).isdisjoint(embeddings_2.index_to_spectrum_hash):
+            # todo allow this to happen, but remove repeating ones and check that they are the same.
             raise ValueError("There are repeated spectra in the embeddings that are added together")
         combined_embeddings =  np.vstack([embeddings_1.embeddings, embeddings_2.embeddings])
         index_to_spectrum_hash = embeddings_1.index_to_spectrum_hash + embeddings_2.index_to_spectrum_hash

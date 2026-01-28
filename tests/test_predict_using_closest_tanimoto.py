@@ -1,5 +1,7 @@
 import numpy as np
 import pytest
+
+from ms2query.benchmarking.Fingerprints import Fingerprints
 from ms2query.benchmarking.reference_methods.predict_using_closest_tanimoto import (
     get_average_predictions_for_closely_related_metabolites,
     get_inchikey_and_tanimoto_scores_for_top_k,
@@ -18,7 +20,8 @@ def test_predict_using_closest_tanimoto():
     test_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(1, nr_of_inchikeys=3))
     library_spectra.add_embeddings(model)
     test_spectra.add_embeddings(model)
-    predicted_inchikeys, scores = predict_using_closest_tanimoto(library_spectra, test_spectra, 3, 3)
+    fingerprints = Fingerprints.from_spectrum_set(library_spectra, "daylight", 2048)
+    predicted_inchikeys, scores = predict_using_closest_tanimoto(library_spectra, test_spectra, fingerprints, 3, 3)
 
     assert isinstance(predicted_inchikeys, list)
     assert len(predicted_inchikeys) == 3
@@ -32,7 +35,9 @@ def test_predict_using_closest_tanimoto_single_spectrum():
     test_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(1, nr_of_inchikeys=3))
     library_spectra.add_embeddings(model)
     test_spectra.add_embeddings(model)
-    predicted_inchikey, score = predict_using_closest_tanimoto_single_spectrum(library_spectra, test_spectra, 3, 3)
+    fingerprints = Fingerprints.from_spectrum_set(library_spectra, "daylight", 2048)
+
+    predicted_inchikey, score = predict_using_closest_tanimoto_single_spectrum(library_spectra, test_spectra, 3, 3, fingerprints)
 
     assert isinstance(predicted_inchikey, str)
     assert len(predicted_inchikey) ==14
@@ -57,7 +62,7 @@ def test_get_average_predictions_for_closely_related_metabolites():
     test_spectra = test_spectra.copy()[2:]
     spectra = AnnotatedSpectrumSet.create_spectrum_set(test_spectra)
 
-    inchikeys = list(spectra.inchikey_fingerprint_pairs.keys())[:3]
+    inchikeys = spectra.inchikeys[:3]
     ms2deepscores = np.zeros(len(spectra.spectra))
     ms2deepscores[0] = 0.8
     ms2deepscores[[1,2,3]] = 0.6
