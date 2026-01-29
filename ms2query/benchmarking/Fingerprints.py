@@ -1,4 +1,5 @@
 from collections import Counter
+from typing import Iterable
 
 import numpy as np
 from numpy.typing import NDArray
@@ -71,7 +72,9 @@ class Fingerprints:
         combined_inchikeys = fingerprints_1.inchikeys + tuple(inchikeys_to_add)
         return cls(combined_fingerprints, combined_inchikeys, fingerprints_1.fingerprint_type)
 
-    def get_fingerprints(self, list_of_inchikeys):
+    def get_fingerprints(self, list_of_inchikeys: Iterable[str]):
+        if not isinstance(list_of_inchikeys, Iterable):
+            raise TypeError("Iterable of inchikeys is expected")
         list_of_indexes = [self._inchikey_to_index[inchikey] for inchikey in list_of_inchikeys]
         return self.fingerprints[list_of_indexes]
 
