@@ -37,7 +37,7 @@ def get_highest_isf(
     library_spectra: AnnotatedSpectrumSet,
     indexes_of_library_spectra_with_highest_score: np.ndarray,
         fingerprints: Fingerprints,
-        predicted_scores: [List[float]],
+        predicted_scores: List[float],
 ):
 
     # Get the corresponding inchikeys
