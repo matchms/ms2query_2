@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import List, Iterable, Optional, Sequence
+from typing import List, Iterable, Mapping, Optional, Sequence
 from matchms import Spectrum
 from ms2deepscore.models import SiameseSpectralModel
 
@@ -10,11 +10,11 @@ class AnnotatedSpectrumSet:
     """Stores a spectrum dataset making it easy and fast to split on molecules"""
     def __init__(self,
                  spectra: Sequence[Spectrum],
-                 spectrum_indexes_per_inchikey: dict[str, Iterable],
+                 spectrum_indexes_per_inchikey: Mapping[str, Iterable[int]],
                  embeddings: Optional[Embeddings] = None,
                  progress_bars=False):
         self._spectra = tuple([spectrum.clone() for spectrum in spectra])
-        self.spectrum_indexes_per_inchikey: dict[str, tuple[int]] = {key: tuple(values) for key, values in spectrum_indexes_per_inchikey.items()}
+        self.spectrum_indexes_per_inchikey: dict[str, tuple[int, ...]] = {key: tuple(values) for key, values in spectrum_indexes_per_inchikey.items()}
         self.progress_bars = progress_bars
         self._embeddings = embeddings
 
