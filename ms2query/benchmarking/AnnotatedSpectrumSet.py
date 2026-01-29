@@ -90,7 +90,7 @@ class AnnotatedSpectrumSet:
                                     self.embeddings,
                                     progress_bars=self.progress_bars)
 
-    def __eq__(self, other: "AnnotatedSpectrumSet"):
+    def __eq__(self, other: object):
         if not isinstance(other, AnnotatedSpectrumSet):
             raise NotImplemented
         if self.spectra != other.spectra:
