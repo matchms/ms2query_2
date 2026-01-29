@@ -38,7 +38,7 @@ def calculate_highest_tanimoto_score_per_inchikey(
 
     highest_possible_score_per_inchikey = dict()
     # todo replace with TopKTanimotoScores
-    inchikeys_in_library = set(library_spectra.inchikeys())
+    inchikeys_in_library = set(library_spectra.inchikeys)
     for i, inchikey in enumerate(query_spectra.inchikeys):
         # Check if inchikey in library (To correctly handle the exact matching case)
         if inchikey in inchikeys_in_library:
