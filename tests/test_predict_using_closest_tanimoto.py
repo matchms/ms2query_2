@@ -81,10 +81,11 @@ def test_get_average_predictions_for_closely_related_metabolites():
 )
 def test_get_inchikey_and_tanimoto_scores_for_top_k(k):
     spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(nr_of_inchikeys=7))
+    fingerprints = Fingerprints.from_spectrum_set(spectra, fingerprint_type="daylight", nbits=4096)
     inchikey = spectra.inchikeys[2]
 
     top_inchikeys, tanimoto_scores_for_top_k = get_inchikey_and_tanimoto_scores_for_top_k(
-        spectra, inchikey,k)
+        fingerprints, inchikey,k)
 
     assert inchikey in top_inchikeys
     assert len(top_inchikeys) == k
