@@ -12,7 +12,7 @@ def create_test_spectra(
     number_of_spectra_per_inchikey=3,
     inchikey_inchi_pairs=None,
     nr_of_inchikeys=3,
-):
+) -> list[Spectrum]:
     if inchikey_inchi_pairs is None:
         inchikey_inchi_pairs = get_inchikey_inchi_pairs(nr_of_inchikeys)
     spectra = []
