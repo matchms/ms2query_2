@@ -1,6 +1,7 @@
 from collections import Counter
 
 import numpy as np
+from numpy.typing import NDArray
 import pandas as pd
 from matchms.filtering.metadata_processing.add_fingerprint import _derive_fingerprint_from_inchi
 from tqdm import tqdm
@@ -12,7 +13,7 @@ from ms2query.metrics import generalized_tanimoto_similarity_matrix
 class Fingerprints:
     # I just realize that there already exists a Fingerprints class in matchms, with almost the same functionality,
     # so it will be good to merge both. The matchms version works slighlty different.
-    def __init__(self, fingerprints: np.array, inchikeys: tuple[str, ...], fingerprint_type):
+    def __init__(self, fingerprints: NDArray, inchikeys: tuple[str, ...], fingerprint_type):
         # self.most_common_inchi_per_inchikey = most_common_inchi_per_inchikey
         self.fingerprint_type = fingerprint_type
         if fingerprints.shape[0] != len(inchikeys):
