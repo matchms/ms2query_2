@@ -70,10 +70,10 @@ def get_average_predictions_for_closely_related_metabolites(spectra_with_embeddi
     average_predicted_score = sum(average_predicted_scores) / len(average_predicted_scores)
     return average_predicted_score
 
-def get_inchikey_and_tanimoto_scores_for_top_k(fingerprints: Fingerprints, inchikey, k
+def get_inchikey_and_tanimoto_scores_for_top_k(fingerprints: Fingerprints, inchikey: str, k: int
                                                ) -> tuple[list[str], np.ndarray]:
     """For an inchikey in a library the top k highest tanimoto scores in the library are predicted (including itself)"""
-    similarity_scores = generalized_tanimoto_similarity_matrix(fingerprints.get_fingerprints(inchikey), fingerprints.fingerprints)[0]
+    similarity_scores = generalized_tanimoto_similarity_matrix(fingerprints.get_fingerprints([inchikey]), fingerprints.fingerprints)[0]
     inchikey_indexes_of_top_k = np.argpartition(similarity_scores, -k)[-k:]
     tanimoto_scores_for_top_k = similarity_scores[inchikey_indexes_of_top_k]
 
