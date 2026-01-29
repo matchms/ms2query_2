@@ -2,6 +2,8 @@ from typing import List, Tuple
 import numpy as np
 from matchms.similarity.vector_similarity_functions import jaccard_similarity_matrix
 from tqdm import tqdm
+
+from ms2query.benchmarking.Fingerprints import Fingerprints
 from ms2query.benchmarking.reference_methods.PredictMS2DeepScoreSimilarity import predict_top_ms2deepscores
 from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 
@@ -9,6 +11,7 @@ from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 def predict_with_integrated_similarity_flow(
     library_spectra: AnnotatedSpectrumSet,
     query_spectra: AnnotatedSpectrumSet,
+    fingerprints: Fingerprints,
     number_of_analogues_to_consider=50,
 ) -> Tuple[List[str], List[float]]:
 
@@ -22,6 +25,7 @@ def predict_with_integrated_similarity_flow(
         highest_isf_score, inchikey_of_highest_isf_score = get_highest_isf(
             library_spectra,
             all_indexes_of_library_spectra_with_highest_score[query_index],
+            fingerprints,
             all_predicted_scores[query_index],
         )
         inchikeys_of_best_matches.append(inchikey_of_highest_isf_score)
@@ -32,7 +36,8 @@ def predict_with_integrated_similarity_flow(
 def get_highest_isf(
     library_spectra: AnnotatedSpectrumSet,
     indexes_of_library_spectra_with_highest_score: np.ndarray,
-    predicted_scores: [List[float]],
+        fingerprints: Fingerprints,
+        predicted_scores: [List[float]],
 ):
 
     # Get the corresponding inchikeys
@@ -43,7 +48,8 @@ def get_highest_isf(
         predicted_scores, inchikeys_with_highest_ms2deepscore
     )
     # calculate tanimoto scores
-    tanimoto_scores = jaccard_similarity_matrix(library_spectra.fingerprints.fingerprints, library_spectra.fingerprints.fingerprints)
+    library_fingerprints = fingerprints.get_fingerprints(library_spectra.inchikeys)
+    tanimoto_scores = jaccard_similarity_matrix(library_fingerprints, library_fingerprints)
 
     isf_scores = integrated_similarity_flow(average_scores, tanimoto_scores, nr_of_spectra_per_inchikey)
     index_of_highest_score = np.argmax(isf_scores)
