@@ -34,10 +34,10 @@ class EvaluateAnalogueSearch:
         average_scores_per_inchikey = []
         # Calculate score per unique inchikey
         for inchikey in tqdm(
-                self.validation_spectrum_set.spectrum_indexes_per_inchikey.keys(),
+                self.validation_spectrum_set.spectrum_indices_per_inchikey.keys(),
                 desc="Calculating analogue accuracy per inchikey",
         ):
-            matching_spectrum_indexes = self.validation_spectrum_set.spectrum_indexes_per_inchikey[inchikey]
+            matching_spectrum_indexes = self.validation_spectrum_set.spectrum_indices_per_inchikey[inchikey]
             prediction_scores = []
             for index in matching_spectrum_indexes:
                 predicted_inchikey = predicted_inchikeys[index]

@@ -50,7 +50,7 @@ fingerprints) -> Tuple[str, float]:
 
 def select_inchikeys_with_highest_ms2deepscore(spectra_with_embeddings: AnnotatedSpectrumSet, ms2deepscores, nr_of_inchikeys_to_select=10):
     highest_score_for_inchikey = []
-    for inchikey, spectrum_indexes in spectra_with_embeddings.spectrum_indexes_per_inchikey.items():
+    for inchikey, spectrum_indexes in spectra_with_embeddings.spectrum_indices_per_inchikey.items():
         all_ms2deepscores_for_inchikey = ms2deepscores[spectrum_indexes,]
         highest_score_for_inchikey.append(max(all_ms2deepscores_for_inchikey))
     inchikey_indexes_with_highest_ms2deepscore = np.argpartition(
@@ -64,7 +64,7 @@ def get_average_predictions_for_closely_related_metabolites(spectra: AnnotatedSp
     """Calculates the average ms2deepscore predictions for top k closest inchikeys"""
     average_predicted_scores = []
     for top_inchikey in top_k_inchikeys:
-        matching_spectrum_indexes = list(spectra.spectrum_indexes_per_inchikey[top_inchikey])
+        matching_spectrum_indexes = list(spectra.spectrum_indices_per_inchikey[top_inchikey])
         predicted_scores = all_ms2deepscores[matching_spectrum_indexes]
         average_predicted_scores.append(predicted_scores.mean())
     average_predicted_score = sum(average_predicted_scores) / len(average_predicted_scores)

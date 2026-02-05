@@ -52,7 +52,7 @@ def test_select_inchikeys_with_highest_ms2deepscore():
     ms2deepscores[5] = 0.9
     ms2deepscores[7] = 0.6
     inchikeys_with_highest_ms2deepscore = select_inchikeys_with_highest_ms2deepscore(spectra, ms2deepscores, 3)
-    expected_inchikeys = list(spectra.spectrum_indexes_per_inchikey.keys())[:3]
+    expected_inchikeys = list(spectra.spectrum_indices_per_inchikey.keys())[:3]
     assert set(expected_inchikeys) == set(inchikeys_with_highest_ms2deepscore)
     print(inchikeys_with_highest_ms2deepscore)
 

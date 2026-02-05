@@ -7,7 +7,7 @@ from tests.conftest import create_test_spectra, ms2deepscore_model
 def test_create_annotated_spectrum_set():
     test_spectra = create_test_spectra(nr_of_inchikeys=3, number_of_spectra_per_inchikey=3)
     spectrum_set = AnnotatedSpectrumSet.create_spectrum_set(spectra=test_spectra)
-    assert len(spectrum_set.spectrum_indexes_per_inchikey) == 3
+    assert len(spectrum_set.spectrum_indices_per_inchikey) == 3
 
 def test_add_spectrum_sets():
     test_spectra = create_test_spectra(nr_of_inchikeys=3, number_of_spectra_per_inchikey=3)

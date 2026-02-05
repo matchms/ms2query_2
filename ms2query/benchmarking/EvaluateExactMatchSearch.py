@@ -34,10 +34,10 @@ class EvaluateExactMatchSearchAcrossIonmodes:
         all_pos_indexes = []
         all_neg_indexes = []
         for inchikey in tqdm(
-            spectrum_set.spectrum_indexes_per_inchikey.keys(),
+            spectrum_set.spectrum_indices_per_inchikey.keys(),
             desc="Splitting spectra per inchikey across ionmodes",
         ):
-            val_spectrum_indexes_matching_inchikey = spectrum_set.spectrum_indexes_per_inchikey[inchikey]
+            val_spectrum_indexes_matching_inchikey = spectrum_set.spectrum_indices_per_inchikey[inchikey]
             positive_val_spectrum_indexes_current_inchikey = []
             negative_val_spectrum_indexes_current_inchikey = []
             for spectrum_index in val_spectrum_indexes_matching_inchikey:
@@ -107,8 +107,8 @@ class EvaluateExactMatchSearchWithinIonmodes:
         indexes_set_1 = []
         indexes_set_2 = []
         rng = random.Random(seed)
-        for inchikey in tqdm(spectrum_set.spectrum_indexes_per_inchikey.keys(), desc="Splitting spectra per inchikey"):
-            val_spectrum_indexes_matching_inchikey = spectrum_set.spectrum_indexes_per_inchikey[inchikey]
+        for inchikey in tqdm(spectrum_set.spectrum_indices_per_inchikey.keys(), desc="Splitting spectra per inchikey"):
+            val_spectrum_indexes_matching_inchikey = spectrum_set.spectrum_indices_per_inchikey[inchikey]
             if len(val_spectrum_indexes_matching_inchikey) == 1:
                 # all single spectra are excluded from this test, since no exact match can be added to the library
                 continue

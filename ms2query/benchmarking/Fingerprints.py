@@ -38,7 +38,7 @@ class Fingerprints:
     @classmethod
     def from_spectrum_set(cls, spectrum_set: AnnotatedSpectrumSet, fingerprint_type, nbits):
         most_common_inchi_per_inchikey = {}
-        for inchikey, spectrum_indexes in tqdm(spectrum_set.spectrum_indexes_per_inchikey.items(), desc="Get most common inchi per inchikey"):
+        for inchikey, spectrum_indexes in tqdm(spectrum_set.spectrum_indices_per_inchikey.items(), desc="Get most common inchi per inchikey"):
             spectra_matching_inchikey = [spectrum_set.spectra[index] for index in spectrum_indexes]
             most_common_inchi = Counter([spectrum.get("inchi") for spectrum in spectra_matching_inchikey]).most_common(1)[0][0]
             most_common_inchi_per_inchikey[inchikey] = most_common_inchi
