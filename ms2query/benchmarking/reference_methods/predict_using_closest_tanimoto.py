@@ -51,7 +51,7 @@ fingerprints) -> Tuple[str, float]:
 def select_inchikeys_with_highest_ms2deepscore(spectra_with_embeddings: AnnotatedSpectrumSet, ms2deepscores, nr_of_inchikeys_to_select=10):
     highest_score_for_inchikey = []
     for inchikey, spectrum_indexes in spectra_with_embeddings.spectrum_indexes_per_inchikey.items():
-        all_ms2deepscores_for_inchikey = ms2deepscores[spectrum_indexes]
+        all_ms2deepscores_for_inchikey = ms2deepscores[spectrum_indexes,]
         highest_score_for_inchikey.append(max(all_ms2deepscores_for_inchikey))
     inchikey_indexes_with_highest_ms2deepscore = np.argpartition(
         np.array(highest_score_for_inchikey), -nr_of_inchikeys_to_select)[-nr_of_inchikeys_to_select:]
