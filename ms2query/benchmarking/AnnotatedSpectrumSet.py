@@ -77,7 +77,7 @@ class AnnotatedSpectrumSet:
     @property
     def embeddings(self) -> "Embeddings":
         if self._embeddings is None:
-            raise ValueError("First run add_embeddings")
+            raise ValueError("First run the 'add_embeddings' method")
         return self._embeddings
 
     @property
