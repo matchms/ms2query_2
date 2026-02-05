@@ -32,7 +32,7 @@ def test_predict_using_closest_tanimoto_single_spectrum():
     """Only very basic test that the function runs and that the output is the right format"""
     model = ms2deepscore_model()
     library_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(nr_of_inchikeys=7))
-    test_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(1, nr_of_inchikeys=3))
+    test_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(1, nr_of_inchikeys=1))
     library_spectra.add_embeddings(model)
     test_spectra.add_embeddings(model)
     fingerprints = Fingerprints.from_spectrum_set(library_spectra, "daylight", 2048)
