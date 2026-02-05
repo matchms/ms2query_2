@@ -13,7 +13,7 @@ from ms2query.benchmarking.reference_methods.predict_with_integrated_similarity_
 from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from tests.conftest import create_test_spectra, ms2deepscore_model
 
-def get_library_and_test_spectra() -> tuple[AnnotatedSpectrumSet, AnnotatedSpectrumSet]:
+def get_library_and_test_spectra_not_identical() -> tuple[AnnotatedSpectrumSet, AnnotatedSpectrumSet]:
     model = ms2deepscore_model()
     spectra = create_test_spectra(number_of_spectra_per_inchikey=3, nr_of_inchikeys=3)
     query_spectra = []
@@ -29,6 +29,14 @@ def get_library_and_test_spectra() -> tuple[AnnotatedSpectrumSet, AnnotatedSpect
     test_spectra.add_embeddings(model)
     return library_spectra, test_spectra
 
+def get_library_and_test_spectra_exactly_matching() -> tuple[AnnotatedSpectrumSet, AnnotatedSpectrumSet]:
+    model = ms2deepscore_model()
+    library_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(number_of_spectra_per_inchikey=3, nr_of_inchikeys=3))
+    test_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(number_of_spectra_per_inchikey=1, nr_of_inchikeys=3))
+    library_spectra.add_embeddings(model)
+    test_spectra.add_embeddings(model)
+    return library_spectra, test_spectra
+
 @pytest.mark.parametrize(
     "prediction_function",
     [
@@ -37,7 +45,7 @@ def get_library_and_test_spectra() -> tuple[AnnotatedSpectrumSet, AnnotatedSpect
     ],
 )
 def test_all_methods(prediction_function):
-    library_spectra, test_spectra = get_library_and_test_spectra()
+    library_spectra, test_spectra = get_library_and_test_spectra_exactly_matching()
     predicted_inchikeys, scores = prediction_function(library_spectra, test_spectra)
     for i, spectrum in enumerate(test_spectra.spectra):
         inchikey = spectrum.get("inchikey")[:14]
@@ -46,7 +54,7 @@ def test_all_methods(prediction_function):
 
 
 def test_predict_best_possible_match():
-    library_spectra, test_spectra = get_library_and_test_spectra()
+    library_spectra, test_spectra = get_library_and_test_spectra_not_identical()
     fingerprints = Fingerprints.from_spectrum_set(library_spectra + test_spectra, "daylight", 2048)
     predicted_inchikeys, scores = predict_best_possible_match(library_spectra, test_spectra, fingerprints)
     for i, spectrum in enumerate(test_spectra.spectra):
@@ -55,7 +63,7 @@ def test_predict_best_possible_match():
         assert np.allclose(scores[i], np.array(1.0), atol=1e-5)
 
 def test_predict_with_integrated_similarity_flow():
-    library_spectra, test_spectra = get_library_and_test_spectra()
+    library_spectra, test_spectra = get_library_and_test_spectra_not_identical()
     fingerprints = Fingerprints.from_spectrum_set(library_spectra, "daylight", 4096)
     predicted_inchikeys, scores = predict_with_integrated_similarity_flow(library_spectra, test_spectra, fingerprints)
 
