@@ -59,12 +59,12 @@ def select_inchikeys_with_highest_ms2deepscore(spectra_with_embeddings: Annotate
     top_inchikeys = [spectra_with_embeddings.inchikeys[inchikey_index] for inchikey_index in inchikey_indexes_with_highest_ms2deepscore]
     return top_inchikeys
 
-def get_average_predictions_for_closely_related_metabolites(spectra_with_embeddings, top_k_inchikeys,
-                                                            all_ms2deepscores):
+def get_average_predictions_for_closely_related_metabolites(spectra: AnnotatedSpectrumSet, top_k_inchikeys,
+                                                            all_ms2deepscores: np.ndarray):
     """Calculates the average ms2deepscore predictions for top k closest inchikeys"""
     average_predicted_scores = []
     for top_inchikey in top_k_inchikeys:
-        matching_spectrum_indexes = spectra_with_embeddings.spectrum_indexes_per_inchikey[top_inchikey]
+        matching_spectrum_indexes = list(spectra.spectrum_indexes_per_inchikey[top_inchikey])
         predicted_scores = all_ms2deepscores[matching_spectrum_indexes]
         average_predicted_scores.append(predicted_scores.mean())
     average_predicted_score = sum(average_predicted_scores) / len(average_predicted_scores)
