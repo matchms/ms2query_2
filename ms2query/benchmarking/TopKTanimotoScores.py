@@ -28,7 +28,9 @@ class TopKTanimotoScores:
 
     @classmethod
     def calculate_from_fingerprints(cls, query_fingerprints: Fingerprints, target_fingerprints: Fingerprints, k):
-        """Gets the top k highest inchikeys and scores for each inchikey in query_fingerprints from target_fingerprints"""
+        """
+        Gets the top k highest inchikeys and scores for each inchikey in query_fingerprints from target_fingerprints
+        """
         similarity_scores = generalized_tanimoto_similarity_matrix(
             query_fingerprints.fingerprints, target_fingerprints.fingerprints
         )

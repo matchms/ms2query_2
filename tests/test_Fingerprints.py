@@ -70,7 +70,8 @@ def test_combine_fingerprint(dummy_fingerprints):
 def test_combine_fingerprints_with_replacing():
     inchikey_inchi_pairs_1 = {
         "RYYVLZVUVIJVGH": "InChI=1S/C8H10N4O2/c1-10-4-9-6-5(10)7(13)12(3)8(14)11(6)2/h4H,1-3H3",
-        "ZPUCINDJVBIVPJ": "InChI=1S/C17H21NO4/c1-18-12-8-9-13(18)15(17(20)21-2)14(10-12)22-16(19)11-6-4-3-5-7-11/h3-7,12-15H,8-10H2,1-2H3/t12-,13+,14-,15+/m0/s1",
+        "ZPUCINDJVBIVPJ": "InChI=1S/C17H21NO4/c1-18-12-8-9-13(18)15(17(20)21-2)14(10-12)22-16"
+        "(19)11-6-4-3-5-7-11/h3-7,12-15H,8-10H2,1-2H3/t12-,13+,14-,15+/m0/s1",
     }
     inchikey_inchi_pairs_2 = {
         "RZVAJINKPMORJF": "InChI=1S/C8H10N4O2/c1-10-4-9-6-5(10)7(13)12(3)8(14)11(6)2/h4H,1-3H3",

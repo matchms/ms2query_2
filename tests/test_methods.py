@@ -29,13 +29,19 @@ def get_library_and_test_spectra_not_identical() -> tuple[AnnotatedSpectrumSet, 
     test_spectra.add_embeddings(model)
     return library_spectra, test_spectra
 
+
 def get_library_and_test_spectra_exactly_matching() -> tuple[AnnotatedSpectrumSet, AnnotatedSpectrumSet]:
     model = ms2deepscore_model()
-    library_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(number_of_spectra_per_inchikey=3, nr_of_inchikeys=3))
-    test_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(number_of_spectra_per_inchikey=1, nr_of_inchikeys=3))
+    library_spectra = AnnotatedSpectrumSet.create_spectrum_set(
+        create_test_spectra(number_of_spectra_per_inchikey=3, nr_of_inchikeys=3)
+    )
+    test_spectra = AnnotatedSpectrumSet.create_spectrum_set(
+        create_test_spectra(number_of_spectra_per_inchikey=1, nr_of_inchikeys=3)
+    )
     library_spectra.add_embeddings(model)
     test_spectra.add_embeddings(model)
     return library_spectra, test_spectra
+
 
 @pytest.mark.parametrize(
     "prediction_function",
@@ -61,6 +67,7 @@ def test_predict_best_possible_match():
         inchikey = spectrum.get("inchikey")[:14]
         assert predicted_inchikeys[i] == inchikey
         assert np.allclose(scores[i], np.array(1.0), atol=1e-5)
+
 
 def test_predict_with_integrated_similarity_flow():
     library_spectra, test_spectra = get_library_and_test_spectra_not_identical()

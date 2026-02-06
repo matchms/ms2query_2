@@ -35,10 +35,10 @@ class EvaluateExactMatchSearchAcrossIonmodes:
 
     @staticmethod
     def split_spectrum_set_per_inchikey_across_ionmodes(
-        self,
         spectrum_set: AnnotatedSpectrumSet,
     ) -> Tuple[AnnotatedSpectrumSet, AnnotatedSpectrumSet]:
-        """Splits a spectrum set in two sets on ionmode. Only uses spectra for inchikeys with at least 1 pos and 1 neg"""
+        """Splits a spectrum set in two sets on ionmode.
+        Only uses spectra for inchikeys with at least 1 pos and 1 neg"""
         all_pos_indexes = []
         all_neg_indexes = []
         for inchikey in tqdm(
