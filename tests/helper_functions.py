@@ -1,8 +1,10 @@
 import os
+import string
 from pathlib import Path
 import numpy as np
 from matchms.Spectrum import Spectrum
 from ms2deepscore.models import load_model
+from ms2query.benchmarking.Fingerprints import Fingerprints
 
 
 TEST_RESOURCES_PATH = Path(__file__).parent / "test_data"
@@ -76,15 +78,54 @@ def get_inchikey_inchi_pairs(number_of_pairs):
             "MWOOGOJBHIARFG-UHFFFAOYSA-N",
             "InChI=1S/C8H8O3/c1-11-8-4-6(5-9)2-3-7(8)10/h2-5,10H,1H3",
             "COC1=C(C=CC(=C1)C=O)O",
-            "vanillin"
+            "vanillin",
         ),
         (
             "ROHFNLRQFUQHCH-YFKPBYRVSA-N",
             "InChI=1S/C6H13NO2/c1-4(2)3-5(7)6(8)9/h4-5H,3,7H2,1-2H3,(H,8,9)/t5-/m0/s1",
             "CC(C)C[C@@H](C(=O)O)N",
-            "L-Leucine"
-        )
+            "L-Leucine",
+        ),
     )
     if number_of_pairs > len(inchikey_inchi_pairs):
         raise ValueError("Not enough example compounds, add some in conftest")
     return inchikey_inchi_pairs[:number_of_pairs]
+
+
+def get_dummy_inchikeys(nr_of_inchikeys):
+    """Creates dummy inchikeys like AAAAAAAAAAAAA, AAAAAAAAAAAAB etc."""
+    letters = string.ascii_uppercase
+    base = len(letters)
+    list_of_inchikeys = []
+    counter = 0
+    for i in range(nr_of_inchikeys):
+        n = counter
+        code = []
+        for _ in range(14):
+            n, rem = divmod(n, base)
+            code.append(letters[rem])
+        list_of_inchikeys.append("".join(reversed(code)))
+        counter += 1
+    return list_of_inchikeys
+
+
+def create_fingerprints(nbits, nr_of_fingerprints):
+    """Creates dummy fingerprints"""
+    fingerprints = []
+    for i in range(nr_of_fingerprints):
+        fingerprint = []
+        for bit in range(nbits):
+            if bit % (i + 1) == 0:
+                fingerprint.append(0)
+            else:
+                fingerprint.append(1)
+        fingerprints.append(fingerprint)
+    return np.array(fingerprints)
+
+
+def make_test_fingerprints(nbits=30, nr_of_inchikeys=20):
+    inchikeys = get_dummy_inchikeys(nr_of_inchikeys=nr_of_inchikeys)
+
+    fingerprints = create_fingerprints(nbits, nr_of_inchikeys)
+    fingerprints = Fingerprints(fingerprints, tuple(inchikeys), fingerprint_type="daylight")
+    return fingerprints
