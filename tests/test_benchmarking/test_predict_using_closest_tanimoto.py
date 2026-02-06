@@ -9,7 +9,7 @@ from ms2query.benchmarking.reference_methods.predict_using_closest_tanimoto impo
     predict_using_closest_tanimoto_single_spectrum,
     select_inchikeys_with_highest_ms2deepscore,
 )
-from tests.conftest import create_test_spectra, ms2deepscore_model
+from tests.helper_functions import create_test_spectra, ms2deepscore_model
 
 
 def test_predict_using_closest_tanimoto():
