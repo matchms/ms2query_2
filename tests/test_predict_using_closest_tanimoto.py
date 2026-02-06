@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-
+from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.benchmarking.Fingerprints import Fingerprints
 from ms2query.benchmarking.reference_methods.predict_using_closest_tanimoto import (
     get_average_predictions_for_closely_related_metabolites,
@@ -9,7 +9,6 @@ from ms2query.benchmarking.reference_methods.predict_using_closest_tanimoto impo
     predict_using_closest_tanimoto_single_spectrum,
     select_inchikeys_with_highest_ms2deepscore,
 )
-from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from tests.conftest import create_test_spectra, ms2deepscore_model
 
 
@@ -28,6 +27,7 @@ def test_predict_using_closest_tanimoto():
     assert isinstance(scores, list)
     assert len(scores) == 3
 
+
 def test_predict_using_closest_tanimoto_single_spectrum():
     """Only very basic test that the function runs and that the output is the right format"""
     model = ms2deepscore_model()
@@ -37,11 +37,14 @@ def test_predict_using_closest_tanimoto_single_spectrum():
     test_spectra.add_embeddings(model)
     fingerprints = Fingerprints.from_spectrum_set(library_spectra, "daylight", 2048)
 
-    predicted_inchikey, score = predict_using_closest_tanimoto_single_spectrum(library_spectra, test_spectra, 3, 3, fingerprints)
+    predicted_inchikey, score = predict_using_closest_tanimoto_single_spectrum(
+        library_spectra, test_spectra, 3, 3, fingerprints
+    )
 
     assert isinstance(predicted_inchikey, str)
-    assert len(predicted_inchikey) ==14
+    assert len(predicted_inchikey) == 14
     assert isinstance(score, float)
+
 
 def test_select_inchikeys_with_highest_ms2deepscore():
     test_spectra = create_test_spectra(nr_of_inchikeys=7)
@@ -56,6 +59,7 @@ def test_select_inchikeys_with_highest_ms2deepscore():
     assert set(expected_inchikeys) == set(inchikeys_with_highest_ms2deepscore)
     print(inchikeys_with_highest_ms2deepscore)
 
+
 def test_get_average_predictions_for_closely_related_metabolites():
     test_spectra = create_test_spectra(nr_of_inchikeys=7)
     # Select different number per inchikey (only one for the first) to check that it is correctly weighted.
@@ -65,15 +69,14 @@ def test_get_average_predictions_for_closely_related_metabolites():
     inchikeys = spectra.inchikeys[:3]
     ms2deepscores = np.zeros(len(spectra.spectra))
     ms2deepscores[0] = 0.8
-    ms2deepscores[[1,2,3]] = 0.6
+    ms2deepscores[[1, 2, 3]] = 0.6
     ms2deepscores[4] = 0.6
     ms2deepscores[5] = 0.8
     ms2deepscores[6] = 0.7
     # the average per inchikey is 0.8, 0.6, 0.7, so average overall should be 0.7
-    average_predicted_score = get_average_predictions_for_closely_related_metabolites(spectra,
-                                                                                      inchikeys,
-                                                                                      ms2deepscores)
+    average_predicted_score = get_average_predictions_for_closely_related_metabolites(spectra, inchikeys, ms2deepscores)
     assert np.allclose(average_predicted_score, np.array(0.7), atol=1e-5)
+
 
 @pytest.mark.parametrize(
     "k",
@@ -84,12 +87,12 @@ def test_get_inchikey_and_tanimoto_scores_for_top_k(k):
     fingerprints = Fingerprints.from_spectrum_set(spectra, fingerprint_type="daylight", nbits=4096)
     inchikey = spectra.inchikeys[2]
 
-    top_inchikeys, tanimoto_scores_for_top_k = get_inchikey_and_tanimoto_scores_for_top_k(
-        fingerprints, inchikey,k)
+    top_inchikeys, tanimoto_scores_for_top_k = get_inchikey_and_tanimoto_scores_for_top_k(fingerprints, inchikey, k)
 
     assert inchikey in top_inchikeys
     assert len(top_inchikeys) == k
     assert len(tanimoto_scores_for_top_k) == k
     assert len(set(top_inchikeys)) == k
-    assert tanimoto_scores_for_top_k[top_inchikeys.index(inchikey)] == 1.0, \
+    assert tanimoto_scores_for_top_k[top_inchikeys.index(inchikey)] == 1.0, (
         "The exact match is expected to have a score of 1.0"
+    )

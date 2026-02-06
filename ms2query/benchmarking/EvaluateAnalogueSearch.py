@@ -1,10 +1,7 @@
 from typing import List
-
 import numpy as np
 from matchms.similarity.vector_similarity_functions import jaccard_similarity_matrix
-
 from tqdm import tqdm
-
 from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.benchmarking.Fingerprints import Fingerprints
 

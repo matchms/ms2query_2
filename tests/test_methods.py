@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from matchms.similarity.vector_similarity_functions import jaccard_similarity_matrix
-
+from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.benchmarking.Fingerprints import Fingerprints
 from ms2query.benchmarking.reference_methods.predict_best_possible_match import predict_best_possible_match
 from ms2query.benchmarking.reference_methods.predict_highest_cosine import predict_highest_cosine
@@ -10,8 +10,8 @@ from ms2query.benchmarking.reference_methods.predict_with_integrated_similarity_
     integrated_similarity_flow,
     predict_with_integrated_similarity_flow,
 )
-from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from tests.conftest import create_test_spectra, ms2deepscore_model
+
 
 def get_library_and_test_spectra_not_identical() -> tuple[AnnotatedSpectrumSet, AnnotatedSpectrumSet]:
     model = ms2deepscore_model()

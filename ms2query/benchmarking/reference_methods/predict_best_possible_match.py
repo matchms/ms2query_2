@@ -4,10 +4,14 @@ from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.benchmarking.Fingerprints import Fingerprints
 
 
-def predict_best_possible_match(library_spectra: AnnotatedSpectrumSet,
-                                query_spectra: AnnotatedSpectrumSet,
-                                fingerprints: Fingerprints,):
-    highest_possible_score_per_inchikey = calculate_highest_tanimoto_score_per_inchikey(library_spectra, query_spectra, fingerprints)
+def predict_best_possible_match(
+    library_spectra: AnnotatedSpectrumSet,
+    query_spectra: AnnotatedSpectrumSet,
+    fingerprints: Fingerprints,
+):
+    highest_possible_score_per_inchikey = calculate_highest_tanimoto_score_per_inchikey(
+        library_spectra, query_spectra, fingerprints
+    )
 
     inchikeys_of_best_match = []
     highest_scores = []
@@ -22,12 +26,10 @@ def predict_best_possible_match(library_spectra: AnnotatedSpectrumSet,
 
 
 def calculate_highest_tanimoto_score_per_inchikey(
-    library_spectra: AnnotatedSpectrumSet, query_spectra: AnnotatedSpectrumSet,
-        fingerprints: Fingerprints
+    library_spectra: AnnotatedSpectrumSet, query_spectra: AnnotatedSpectrumSet, fingerprints: Fingerprints
 ) -> Dict[str, tuple[str, float]]:
     """Finds the best possible match during an analogue search"""
     print("Calculating tanimoto scores to determine best possible match")
-
 
     library_fingerprints = fingerprints.get_fingerprints(library_spectra.inchikeys)
     query_fingerprints = fingerprints.get_fingerprints(query_spectra.inchikeys)

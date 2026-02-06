@@ -1,5 +1,4 @@
 from typing import Sequence
-
 import numpy as np
 from matchms import Spectrum
 from ms2deepscore.models import SiameseSpectralModel, compute_embedding_array
@@ -7,17 +6,19 @@ from ms2deepscore.models import SiameseSpectralModel, compute_embedding_array
 
 class Embeddings:
     """Stores Embeddings for a list of mass spectra"""
+
     def __init__(self, embeddings: np.ndarray, spectrum_hashes: tuple, model_settings: dict):
         if len(spectrum_hashes) != embeddings.shape[0]:
             raise ValueError("Number of spectra hashes does not match number of embeddings")
         self.index_to_spectrum_hash = spectrum_hashes
-        self._spectrum_hash_to_index = {spectrum_hash: index for index, spectrum_hash in enumerate(self.index_to_spectrum_hash)}
+        self._spectrum_hash_to_index = {
+            spectrum_hash: index for index, spectrum_hash in enumerate(self.index_to_spectrum_hash)
+        }
         self._model_settings = model_settings
         self._embeddings = embeddings
 
     @classmethod
-    def create_from_spectra(cls, spectra: Sequence[Spectrum],
-                 model: SiameseSpectralModel) -> "Embeddings":
+    def create_from_spectra(cls, spectra: Sequence[Spectrum], model: SiameseSpectralModel) -> "Embeddings":
         index_to_spectrum_hash = tuple(spectrum.__hash__() for spectrum in spectra)
         if len(set(index_to_spectrum_hash)) != len(spectra):
             raise ValueError("There are duplicated spectra in the spectrum list")
@@ -33,7 +34,7 @@ class Embeddings:
         if not set(embeddings_1.index_to_spectrum_hash).isdisjoint(embeddings_2.index_to_spectrum_hash):
             # todo allow this to happen, but remove repeating ones and check that they are the same.
             raise ValueError("There are repeated spectra in the embeddings that are added together")
-        combined_embeddings =  np.vstack([embeddings_1.embeddings, embeddings_2.embeddings])
+        combined_embeddings = np.vstack([embeddings_1.embeddings, embeddings_2.embeddings])
         index_to_spectrum_hash = embeddings_1.index_to_spectrum_hash + embeddings_2.index_to_spectrum_hash
         return cls(combined_embeddings, index_to_spectrum_hash, embeddings_1.model_settings)
 
@@ -60,6 +61,7 @@ class Embeddings:
             spectrum_hashes=tuple(self.index_to_spectrum_hash),
             model_settings=dict(self._model_settings),
         )
+
     def __eq__(self, other) -> bool:
         if not isinstance(other, Embeddings):
             return NotImplemented

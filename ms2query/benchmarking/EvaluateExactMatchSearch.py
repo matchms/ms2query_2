@@ -6,28 +6,36 @@ from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 
 class EvaluateExactMatchSearchAcrossIonmodes:
     def __init__(
-        self, training_spectrum_set: AnnotatedSpectrumSet,
-            validation_spectrum_set: AnnotatedSpectrumSet,
+        self,
+        training_spectrum_set: AnnotatedSpectrumSet,
+        validation_spectrum_set: AnnotatedSpectrumSet,
     ):
         self.training_spectrum_set = training_spectrum_set
-        (self.pos_validation_spectra,
-         self.neg_validation_spectra) = self.split_spectrum_set_per_inchikey_across_ionmodes(validation_spectrum_set)
+        (self.pos_validation_spectra, self.neg_validation_spectra) = (
+            self.split_spectrum_set_per_inchikey_across_ionmodes(validation_spectrum_set)
+        )
 
-    def pos_in_neg(self, prediction_function: Callable[
-            [AnnotatedSpectrumSet, AnnotatedSpectrumSet], Tuple[List[str], List[float]]
-        ],):
-        return get_exact_match_accuracy(self.pos_validation_spectra,
-                                        prediction_function(self.training_spectrum_set + self.neg_validation_spectra,
-                                                            self.pos_validation_spectra))
-    def neg_in_pos(self, prediction_function: Callable[
-            [AnnotatedSpectrumSet, AnnotatedSpectrumSet], Tuple[List[str], List[float]]
-        ],):
-        return get_exact_match_accuracy(self.neg_validation_spectra,
-                                        prediction_function(self.training_spectrum_set + self.pos_validation_spectra,
-                                                            self.neg_validation_spectra))
+    def pos_in_neg(
+        self,
+        prediction_function: Callable[[AnnotatedSpectrumSet, AnnotatedSpectrumSet], Tuple[List[str], List[float]]],
+    ):
+        return get_exact_match_accuracy(
+            self.pos_validation_spectra,
+            prediction_function(self.training_spectrum_set + self.neg_validation_spectra, self.pos_validation_spectra),
+        )
+
+    def neg_in_pos(
+        self,
+        prediction_function: Callable[[AnnotatedSpectrumSet, AnnotatedSpectrumSet], Tuple[List[str], List[float]]],
+    ):
+        return get_exact_match_accuracy(
+            self.neg_validation_spectra,
+            prediction_function(self.training_spectrum_set + self.pos_validation_spectra, self.neg_validation_spectra),
+        )
 
     @staticmethod
-    def split_spectrum_set_per_inchikey_across_ionmodes(self,
+    def split_spectrum_set_per_inchikey_across_ionmodes(
+        self,
         spectrum_set: AnnotatedSpectrumSet,
     ) -> Tuple[AnnotatedSpectrumSet, AnnotatedSpectrumSet]:
         """Splits a spectrum set in two sets on ionmode. Only uses spectra for inchikeys with at least 1 pos and 1 neg"""
@@ -63,45 +71,59 @@ class EvaluateExactMatchSearchAcrossIonmodes:
 
 class EvaluateExactMatchSearchWithinIonmodes:
     def __init__(
-            self, training_spectrum_set: AnnotatedSpectrumSet,
-            validation_spectrum_set: AnnotatedSpectrumSet,
+        self,
+        training_spectrum_set: AnnotatedSpectrumSet,
+        validation_spectrum_set: AnnotatedSpectrumSet,
     ):
         self.training_spectrum_set = training_spectrum_set
         self.pos_split_per_inchikey_set_1, self.pos_split_per_inchikey_set_2 = self._split_spectrum_set_per_inchikeys(
-            subset_spectra_on_ionmode(validation_spectrum_set, "positive"))
+            subset_spectra_on_ionmode(validation_spectrum_set, "positive")
+        )
 
         self.neg_split_per_inchikey_set_1, self.neg_split_per_inchikey_set_2 = self._split_spectrum_set_per_inchikeys(
-            subset_spectra_on_ionmode(validation_spectrum_set, "negative"))
+            subset_spectra_on_ionmode(validation_spectrum_set, "negative")
+        )
 
-    def neg_in_neg(self, prediction_function: Callable[
-            [AnnotatedSpectrumSet, AnnotatedSpectrumSet], Tuple[List[str], List[float]]
-        ],):
+    def neg_in_neg(
+        self,
+        prediction_function: Callable[[AnnotatedSpectrumSet, AnnotatedSpectrumSet], Tuple[List[str], List[float]]],
+    ):
         accuracy_set_2 = get_exact_match_accuracy(
             self.neg_split_per_inchikey_set_2,
-            prediction_function(self.training_spectrum_set + self.neg_split_per_inchikey_set_1,
-                                self.neg_split_per_inchikey_set_2))
+            prediction_function(
+                self.training_spectrum_set + self.neg_split_per_inchikey_set_1, self.neg_split_per_inchikey_set_2
+            ),
+        )
         accuracy_set_1 = get_exact_match_accuracy(
             self.neg_split_per_inchikey_set_1,
-            prediction_function(self.training_spectrum_set + self.neg_split_per_inchikey_set_2,
-                                self.neg_split_per_inchikey_set_1))
+            prediction_function(
+                self.training_spectrum_set + self.neg_split_per_inchikey_set_2, self.neg_split_per_inchikey_set_1
+            ),
+        )
         return (accuracy_set_2 + accuracy_set_1) / 2
 
-    def pos_in_pos(self, prediction_function: Callable[
-            [AnnotatedSpectrumSet, AnnotatedSpectrumSet], Tuple[List[str], List[float]]
-        ],):
+    def pos_in_pos(
+        self,
+        prediction_function: Callable[[AnnotatedSpectrumSet, AnnotatedSpectrumSet], Tuple[List[str], List[float]]],
+    ):
         accuracy_set_2 = get_exact_match_accuracy(
             self.pos_split_per_inchikey_set_2,
-            prediction_function(self.training_spectrum_set + self.pos_split_per_inchikey_set_1,
-                                self.pos_split_per_inchikey_set_2))
+            prediction_function(
+                self.training_spectrum_set + self.pos_split_per_inchikey_set_1, self.pos_split_per_inchikey_set_2
+            ),
+        )
         accuracy_set_1 = get_exact_match_accuracy(
             self.pos_split_per_inchikey_set_1,
-            prediction_function(self.training_spectrum_set + self.pos_split_per_inchikey_set_2,
-                                self.pos_split_per_inchikey_set_1))
+            prediction_function(
+                self.training_spectrum_set + self.pos_split_per_inchikey_set_2, self.pos_split_per_inchikey_set_1
+            ),
+        )
         return (accuracy_set_2 + accuracy_set_1) / 2
 
     @staticmethod
-    def _split_spectrum_set_per_inchikeys(spectrum_set: AnnotatedSpectrumSet,
-                                         seed=42) -> Tuple[AnnotatedSpectrumSet, AnnotatedSpectrumSet]:
+    def _split_spectrum_set_per_inchikeys(
+        spectrum_set: AnnotatedSpectrumSet, seed=42
+    ) -> Tuple[AnnotatedSpectrumSet, AnnotatedSpectrumSet]:
         """Splits a spectrum set into two.
         For each inchikey with more than one spectrum the spectra are divided over the two sets"""
         indexes_set_1 = []
@@ -117,6 +139,7 @@ class EvaluateExactMatchSearchWithinIonmodes:
             indexes_set_1.extend(val_spectrum_indexes_matching_inchikey[:split_index])
             indexes_set_2.extend(val_spectrum_indexes_matching_inchikey[split_index:])
         return spectrum_set.subset_spectra(indexes_set_1), spectrum_set.subset_spectra(indexes_set_2)
+
 
 def get_exact_match_accuracy(query_spectrum_set, predicted_inchikeys):
     exact_match_accuracy_per_inchikey = []

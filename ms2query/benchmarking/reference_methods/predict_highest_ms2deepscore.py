@@ -1,6 +1,6 @@
 from typing import List, Tuple
-from ms2query.benchmarking.reference_methods.PredictMS2DeepScoreSimilarity import predict_top_ms2deepscores
 from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
+from ms2query.benchmarking.reference_methods.PredictMS2DeepScoreSimilarity import predict_top_ms2deepscores
 
 
 def predict_highest_ms2deepscore(

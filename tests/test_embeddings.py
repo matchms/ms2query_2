@@ -1,5 +1,4 @@
 import pytest
-
 from ms2query.benchmarking.Embeddings import Embeddings
 from tests.conftest import create_test_spectra, ms2deepscore_model
 
