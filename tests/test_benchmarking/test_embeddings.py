@@ -1,6 +1,6 @@
 import pytest
 from ms2query.benchmarking.Embeddings import Embeddings
-from tests.conftest import create_test_spectra, ms2deepscore_model
+from tests.helper_functions import create_test_spectra, ms2deepscore_model
 
 
 def test_subset_embeddings():
@@ -29,5 +29,3 @@ def test_combine_embeddings():
     assert combined_embeddings == correct_combined_embeddings
     with pytest.raises(ValueError):
         Embeddings.combine_embeddings(embeddings_1, embeddings_1)
-
-

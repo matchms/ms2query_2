@@ -10,7 +10,7 @@ from ms2query.benchmarking.reference_methods.predict_with_integrated_similarity_
     integrated_similarity_flow,
     predict_with_integrated_similarity_flow,
 )
-from tests.conftest import create_test_spectra, ms2deepscore_model
+from tests.helper_functions import create_test_spectra, ms2deepscore_model
 
 
 def get_library_and_test_spectra_not_identical() -> tuple[AnnotatedSpectrumSet, AnnotatedSpectrumSet]:

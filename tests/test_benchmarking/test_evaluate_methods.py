@@ -1,6 +1,6 @@
 from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.benchmarking.EvaluateAnalogueSearch import EvaluateAnalogueSearch
-from tests.conftest import create_test_spectra, ms2deepscore_model
+from tests.helper_functions import create_test_spectra, ms2deepscore_model
 
 
 def create_dummy_library_and_validation_spectra() -> tuple[AnnotatedSpectrumSet, AnnotatedSpectrumSet]:
