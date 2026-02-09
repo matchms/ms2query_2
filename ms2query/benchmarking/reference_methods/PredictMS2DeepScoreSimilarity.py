@@ -1,7 +1,9 @@
 from typing import Tuple
 import numpy as np
+import pandas as pd
 from ms2deepscore.vector_operations import cosine_similarity_matrix
 from tqdm import tqdm
+from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.benchmarking.Embeddings import Embeddings
 
 
@@ -45,3 +47,30 @@ def predict_top_ms2deepscores(
         top_scores_per_batch.append(top_n_scores)
     # todo refactor to use the Embeddings class and return spectrum hashes instead of indexes
     return np.vstack(top_indexes_per_batch), np.vstack(top_scores_per_batch)
+
+
+def select_inchikeys_with_highest_ms2deepscore(
+    query_spectra: AnnotatedSpectrumSet, library_spectra: AnnotatedSpectrumSet, nr_of_inchikeys_to_select=100
+) -> list[list[str]]:
+    """Selects the top x inchikeys with the highest score for each query spectrum"""
+    ms2deepscores = cosine_similarity_matrix(query_spectra.embeddings.embeddings, library_spectra.embeddings.embeddings)
+
+    max_ms2deepscores_per_inchikey = np.zeros(
+        (ms2deepscores.shape[0], len(library_spectra.spectrum_indices_per_inchikey))
+    )
+    for inchikey_index, spectrum_indexes in enumerate(library_spectra.spectrum_indices_per_inchikey.values()):
+        # For one library inchikey, get all the scores and calculate the maximum score with each query spectrum
+        all_ms2deepscores_for_inchikey = ms2deepscores[:, spectrum_indexes]
+        max_ms2deepscores_per_inchikey[inchikey_index] = all_ms2deepscores_for_inchikey.max(axis=1)
+    inchikey_indexes_with_highest_ms2deepscore = np.argpartition(
+        max_ms2deepscores_per_inchikey, -nr_of_inchikeys_to_select, axis=1
+    )[:, -nr_of_inchikeys_to_select:]
+
+    # Convert indexes to inchikeys
+    top_inchikeys_per_query_spectrum = []
+    for row in inchikey_indexes_with_highest_ms2deepscore:
+        inchikeys = []
+        for inchikey_index in row:
+            inchikeys.append(library_spectra.inchikeys[inchikey_index])
+        top_inchikeys_per_query_spectrum.append(inchikeys)
+    return top_inchikeys_per_query_spectrum

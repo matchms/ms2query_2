@@ -3,8 +3,9 @@ import pytest
 from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.benchmarking.reference_methods.PredictMS2DeepScoreSimilarity import (
     predict_top_ms2deepscores,
+    select_inchikeys_with_highest_ms2deepscore,
 )
-from tests.helper_functions import create_test_spectra, ms2deepscore_model
+from tests.helper_functions import create_test_spectra, get_library_and_test_spectra_not_identical, ms2deepscore_model
 
 
 @pytest.mark.parametrize(
@@ -28,3 +29,13 @@ def test_predict_highest_ms2deepscore_similarity(method):
     for i, row in enumerate(indices):
         assert row[0] == i, "The highest predictions should be against itself"
         assert np.allclose(distances[i][0], 1.0, atol=1e-5)
+
+
+def test_select_inchikeys_with_highest_ms2deepscore():
+    library_spectra, query_spectra = get_library_and_test_spectra_not_identical()
+    inschikeys_with_highest_scores = select_inchikeys_with_highest_ms2deepscore(query_spectra, library_spectra, 2)
+    assert inschikeys_with_highest_scores == [
+        ["RZVAJINKPMORJF", "RYYVLZVUVIJVGH"],
+        ["RZVAJINKPMORJF", "ZPUCINDJVBIVPJ"],
+        ["RYYVLZVUVIJVGH", "RZVAJINKPMORJF"],
+    ]
