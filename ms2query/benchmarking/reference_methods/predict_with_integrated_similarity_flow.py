@@ -4,7 +4,7 @@ from matchms.similarity.vector_similarity_functions import jaccard_similarity_ma
 from tqdm import tqdm
 from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.benchmarking.Fingerprints import Fingerprints
-from ms2query.benchmarking.reference_methods.PredictMS2DeepScoreSimilarity import predict_top_ms2deepscores
+from ms2query.benchmarking.reference_methods.predict_top_ms2deepscores import predict_top_ms2deepscores
 
 
 def predict_with_integrated_similarity_flow(
@@ -35,8 +35,8 @@ def predict_with_integrated_similarity_flow(
 def get_highest_isf(
     library_spectra: AnnotatedSpectrumSet,
     indexes_of_library_spectra_with_highest_score: np.ndarray,
-        fingerprints: Fingerprints,
-        predicted_scores: List[float],
+    fingerprints: Fingerprints,
+    predicted_scores: List[float],
 ):
 
     # Get the corresponding inchikeys
