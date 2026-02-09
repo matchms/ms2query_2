@@ -6,8 +6,6 @@ from ms2query.benchmarking.reference_methods.predict_using_closest_tanimoto impo
     get_average_predictions_for_closely_related_metabolites,
     get_inchikey_and_tanimoto_scores_for_top_k,
     predict_using_closest_tanimoto,
-    predict_using_closest_tanimoto_single_spectrum,
-    select_inchikeys_with_highest_ms2deepscore,
 )
 from tests.helper_functions import create_test_spectra, ms2deepscore_model
 
@@ -26,38 +24,6 @@ def test_predict_using_closest_tanimoto():
     assert len(predicted_inchikeys) == 3
     assert isinstance(scores, list)
     assert len(scores) == 3
-
-
-def test_predict_using_closest_tanimoto_single_spectrum():
-    """Only very basic test that the function runs and that the output is the right format"""
-    model = ms2deepscore_model()
-    library_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(nr_of_inchikeys=7))
-    test_spectra = AnnotatedSpectrumSet.create_spectrum_set(create_test_spectra(1, nr_of_inchikeys=1))
-    library_spectra.add_embeddings(model)
-    test_spectra.add_embeddings(model)
-    fingerprints = Fingerprints.from_spectrum_set(library_spectra, "daylight", 2048)
-
-    predicted_inchikey, score = predict_using_closest_tanimoto_single_spectrum(
-        library_spectra, test_spectra, 3, 3, fingerprints
-    )
-
-    assert isinstance(predicted_inchikey, str)
-    assert len(predicted_inchikey) == 14
-    assert isinstance(score, float)
-
-
-def test_select_inchikeys_with_highest_ms2deepscore():
-    test_spectra = create_test_spectra(nr_of_inchikeys=7)
-    spectra = AnnotatedSpectrumSet.create_spectrum_set(test_spectra)
-
-    ms2deepscores = np.zeros(len(test_spectra))
-    ms2deepscores[2] = 0.4
-    ms2deepscores[5] = 0.9
-    ms2deepscores[7] = 0.6
-    inchikeys_with_highest_ms2deepscore = select_inchikeys_with_highest_ms2deepscore(spectra, ms2deepscores, 3)
-    expected_inchikeys = list(spectra.spectrum_indices_per_inchikey.keys())[:3]
-    assert set(expected_inchikeys) == set(inchikeys_with_highest_ms2deepscore)
-    print(inchikeys_with_highest_ms2deepscore)
 
 
 def test_get_average_predictions_for_closely_related_metabolites():

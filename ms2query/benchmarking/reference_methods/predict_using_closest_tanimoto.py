@@ -4,6 +4,8 @@ from ms2deepscore.vector_operations import cosine_similarity_matrix
 from tqdm import tqdm
 from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.benchmarking.Fingerprints import Fingerprints
+from ms2query.benchmarking.reference_methods.predict_top_ms2deepscores import select_inchikeys_with_highest_ms2deepscore
+from ms2query.benchmarking.TopKTanimotoScores import TopKTanimotoScores
 from ms2query.metrics import generalized_tanimoto_similarity_matrix
 
 
@@ -17,66 +19,34 @@ def predict_using_closest_tanimoto(
     """Predict best inchikey, by taking the average score over all spectra for the 10 closest related library inchikeys.
     (simplified version of old MS2Query)
     """
+    top_k_tanimoto_scores = TopKTanimotoScores.calculate_from_fingerprints(
+        library_fingerprints,
+        library_fingerprints,
+        k=nr_of_closest_inchikeys_to_select,
+    )
+    ms2deepscores = cosine_similarity_matrix(query_spectra.embeddings.embeddings, library_spectra.embeddings.embeddings)
+    inchikeys_with_highest_ms2deepscores = select_inchikeys_with_highest_ms2deepscore(
+        query_spectra, library_spectra, nr_of_inchikeys_with_highest_ms2deepscore_to_select, ms2deepscores=ms2deepscores
+    )
+
     inchikeys_of_best_match = []
     highest_scores = []
     for spectrum_idx in tqdm(range(len(query_spectra.spectra)), "Predicting using closest tanimoto"):
-        inchikey_of_best_match, score = predict_using_closest_tanimoto_single_spectrum(
-            library_spectra,
-            query_spectra.subset_spectra([spectrum_idx]),
-            nr_of_closest_inchikeys_to_select,
-            nr_of_inchikeys_with_highest_ms2deepscore_to_select,
-            library_fingerprints,
+        average_predicted_scores = {}
+        for inchikey in inchikeys_with_highest_ms2deepscores[spectrum_idx]:
+            top_k_inchikeys = top_k_tanimoto_scores.select_top_k_inchikeys(inchikey)
+
+            average_predicted_score = get_average_predictions_for_closely_related_metabolites(
+                library_spectra, top_k_inchikeys, ms2deepscores[spectrum_idx]
+            )
+            average_predicted_scores[inchikey] = average_predicted_score
+
+        inchikey_with_highest_average_prediction, score = max(
+            average_predicted_scores.items(), key=lambda item: item[1]
         )
-        inchikeys_of_best_match.append(inchikey_of_best_match)
+        inchikeys_of_best_match.append(inchikey_with_highest_average_prediction)
         highest_scores.append(score)
     return inchikeys_of_best_match, highest_scores
-
-
-def predict_using_closest_tanimoto_single_spectrum(
-    spectra_with_embeddings: AnnotatedSpectrumSet,
-    single_spectrum_with_embeddings: AnnotatedSpectrumSet,
-    nr_of_closest_inchikeys_to_select,
-    nr_of_inchikeys_with_highest_ms2deepscore_to_select,
-    fingerprints,
-) -> Tuple[str, float]:
-    if len(single_spectrum_with_embeddings.spectra) != 1:
-        raise ValueError("expected a single spectrum")
-    ms2deepscores = cosine_similarity_matrix(
-        single_spectrum_with_embeddings.embeddings.embeddings, spectra_with_embeddings.embeddings.embeddings
-    )[0]
-    top_inchikeys = select_inchikeys_with_highest_ms2deepscore(
-        spectra_with_embeddings, ms2deepscores, nr_of_inchikeys_with_highest_ms2deepscore_to_select
-    )
-    average_predicted_scores = {}
-    for inchikey in top_inchikeys:
-        top_k_inchikeys, _ = get_inchikey_and_tanimoto_scores_for_top_k(
-            fingerprints, inchikey, nr_of_closest_inchikeys_to_select
-        )
-        average_predicted_score = get_average_predictions_for_closely_related_metabolites(
-            spectra_with_embeddings, top_k_inchikeys, ms2deepscores
-        )
-        average_predicted_scores[inchikey] = average_predicted_score
-
-    inchikey_with_highest_average_prediction, score = max(average_predicted_scores.items(), key=lambda item: item[1])
-    return inchikey_with_highest_average_prediction, score
-
-
-def select_inchikeys_with_highest_ms2deepscore(
-    spectra_with_embeddings: AnnotatedSpectrumSet, ms2deepscores, nr_of_inchikeys_to_select=10
-):
-    highest_score_for_inchikey = []
-    for inchikey, spectrum_indexes in spectra_with_embeddings.spectrum_indices_per_inchikey.items():
-        all_ms2deepscores_for_inchikey = ms2deepscores[spectrum_indexes,]
-        highest_score_for_inchikey.append(max(all_ms2deepscores_for_inchikey))
-    inchikey_indexes_with_highest_ms2deepscore = np.argpartition(
-        np.array(highest_score_for_inchikey), -nr_of_inchikeys_to_select
-    )[-nr_of_inchikeys_to_select:]
-
-    top_inchikeys = [
-        spectra_with_embeddings.inchikeys[inchikey_index]
-        for inchikey_index in inchikey_indexes_with_highest_ms2deepscore
-    ]
-    return top_inchikeys
 
 
 def get_average_predictions_for_closely_related_metabolites(
