@@ -60,6 +60,8 @@ def select_inchikeys_with_highest_ms2deepscore(
         ms2deepscores = cosine_similarity_matrix(
             query_spectra.embeddings.embeddings, library_spectra.embeddings.embeddings
         )
+    else:
+        assert ms2deepscores.shape == (len(query_spectra.spectra), len(library_spectra.spectra))
 
     max_ms2deepscores_per_inchikey = np.zeros(
         (ms2deepscores.shape[0], len(library_spectra.spectrum_indices_per_inchikey))
@@ -67,7 +69,8 @@ def select_inchikeys_with_highest_ms2deepscore(
     for inchikey_index, spectrum_indexes in enumerate(library_spectra.spectrum_indices_per_inchikey.values()):
         # For one library inchikey, get all the scores and calculate the maximum score with each query spectrum
         all_ms2deepscores_for_inchikey = ms2deepscores[:, spectrum_indexes]
-        max_ms2deepscores_per_inchikey[inchikey_index] = all_ms2deepscores_for_inchikey.max(axis=1)
+        highest_score_per_inchikey = all_ms2deepscores_for_inchikey.max(axis=1)
+        max_ms2deepscores_per_inchikey[:, inchikey_index] = highest_score_per_inchikey
     inchikey_indexes_with_highest_ms2deepscore = np.argpartition(
         max_ms2deepscores_per_inchikey, -nr_of_inchikeys_to_select, axis=1
     )[:, -nr_of_inchikeys_to_select:]
