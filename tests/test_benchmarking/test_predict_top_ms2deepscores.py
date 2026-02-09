@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
-from ms2query.benchmarking.reference_methods.PredictMS2DeepScoreSimilarity import (
+from ms2query.benchmarking.reference_methods.predict_top_ms2deepscores import (
     predict_top_ms2deepscores,
     select_inchikeys_with_highest_ms2deepscore,
 )
