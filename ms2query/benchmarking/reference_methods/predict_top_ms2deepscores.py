@@ -1,6 +1,5 @@
 from typing import Optional, Tuple
 import numpy as np
-import pandas as pd
 from ms2deepscore.vector_operations import cosine_similarity_matrix
 from tqdm import tqdm
 from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
