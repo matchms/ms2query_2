@@ -4,6 +4,7 @@ import pandas as pd
 from matchms import Spectrum
 from ms2deepscore.models import SiameseSpectralModel, compute_embedding_array
 from ms2deepscore.vector_operations import cosine_similarity_matrix
+from tqdm import tqdm
 
 
 class Embeddings:
@@ -21,7 +22,7 @@ class Embeddings:
 
     @classmethod
     def create_from_spectra(cls, spectra: Sequence[Spectrum], model: SiameseSpectralModel) -> "Embeddings":
-        index_to_spectrum_hash = tuple(spectrum.__hash__() for spectrum in spectra)
+        index_to_spectrum_hash = tuple(spectrum.__hash__() for spectrum in tqdm(spectra, desc="Hashing spectra"))
         if len(set(index_to_spectrum_hash)) != len(spectra):
             raise ValueError("There are duplicated spectra in the spectrum list")
 
