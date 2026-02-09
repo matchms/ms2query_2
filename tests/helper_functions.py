@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 from matchms.Spectrum import Spectrum
 from ms2deepscore.models import load_model
+from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.benchmarking.Fingerprints import Fingerprints
 
 
@@ -129,3 +130,33 @@ def make_test_fingerprints(nbits=30, nr_of_inchikeys=20):
     fingerprints = create_fingerprints(nbits, nr_of_inchikeys)
     fingerprints = Fingerprints(fingerprints, tuple(inchikeys), fingerprint_type="daylight")
     return fingerprints
+
+
+def get_library_and_test_spectra_not_identical() -> tuple[AnnotatedSpectrumSet, AnnotatedSpectrumSet]:
+    model = ms2deepscore_model()
+    spectra = create_test_spectra(number_of_spectra_per_inchikey=3, nr_of_inchikeys=3)
+    query_spectra = []
+    lib_spectra = []
+    for i, spectrum in enumerate(spectra):
+        if i % 3 == 0:
+            query_spectra.append(spectrum)
+        else:
+            lib_spectra.append(spectrum)
+    library_spectra = AnnotatedSpectrumSet.create_spectrum_set(lib_spectra)
+    test_spectra = AnnotatedSpectrumSet.create_spectrum_set(query_spectra)
+    library_spectra.add_embeddings(model)
+    test_spectra.add_embeddings(model)
+    return library_spectra, test_spectra
+
+
+def get_library_and_test_spectra_exactly_matching() -> tuple[AnnotatedSpectrumSet, AnnotatedSpectrumSet]:
+    model = ms2deepscore_model()
+    library_spectra = AnnotatedSpectrumSet.create_spectrum_set(
+        create_test_spectra(number_of_spectra_per_inchikey=3, nr_of_inchikeys=3)
+    )
+    test_spectra = AnnotatedSpectrumSet.create_spectrum_set(
+        create_test_spectra(number_of_spectra_per_inchikey=1, nr_of_inchikeys=3)
+    )
+    library_spectra.add_embeddings(model)
+    test_spectra.add_embeddings(model)
+    return library_spectra, test_spectra
