@@ -1,7 +1,9 @@
 from typing import Sequence
 import numpy as np
+import pandas as pd
 from matchms import Spectrum
 from ms2deepscore.models import SiameseSpectralModel, compute_embedding_array
+from ms2deepscore.vector_operations import cosine_similarity_matrix
 
 
 class Embeddings:
@@ -72,3 +74,11 @@ class Embeddings:
             print("index to spectrum hash not equal")
             return False
         return np.array_equal(self.embeddings, other.embeddings)
+
+
+def calculate_ms2deepscore_df(query_embeddings: Embeddings, library_embeddings: Embeddings):
+    """Returns a DF, where the indexes and column labels are the spectrum hashes"""
+    ms2deepscores = cosine_similarity_matrix(query_embeddings.embeddings, library_embeddings.embeddings)
+    return pd.DataFrame(
+        ms2deepscores, index=query_embeddings.index_to_spectrum_hash, columns=library_embeddings.index_to_spectrum_hash
+    )
