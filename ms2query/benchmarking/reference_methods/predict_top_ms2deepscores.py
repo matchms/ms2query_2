@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 from ms2deepscore.vector_operations import cosine_similarity_matrix
@@ -50,10 +50,16 @@ def predict_top_ms2deepscores(
 
 
 def select_inchikeys_with_highest_ms2deepscore(
-    query_spectra: AnnotatedSpectrumSet, library_spectra: AnnotatedSpectrumSet, nr_of_inchikeys_to_select=100
+    query_spectra: AnnotatedSpectrumSet,
+    library_spectra: AnnotatedSpectrumSet,
+    nr_of_inchikeys_to_select=100,
+    ms2deepscores: Optional[np.ndarray] = None,
 ) -> list[list[str]]:
     """Selects the top x inchikeys with the highest score for each query spectrum"""
-    ms2deepscores = cosine_similarity_matrix(query_spectra.embeddings.embeddings, library_spectra.embeddings.embeddings)
+    if ms2deepscores is None:
+        ms2deepscores = cosine_similarity_matrix(
+            query_spectra.embeddings.embeddings, library_spectra.embeddings.embeddings
+        )
 
     max_ms2deepscores_per_inchikey = np.zeros(
         (ms2deepscores.shape[0], len(library_spectra.spectrum_indices_per_inchikey))
