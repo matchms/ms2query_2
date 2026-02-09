@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import Iterable, List, Mapping, Optional, Sequence
 from matchms import Spectrum
 from ms2deepscore.models import SiameseSpectralModel
+from tqdm import tqdm
 from ms2query.benchmarking.Embeddings import Embeddings
 
 
@@ -13,24 +14,22 @@ class AnnotatedSpectrumSet:
         spectra: Sequence[Spectrum],
         spectrum_indices_per_inchikey: Mapping[str, Iterable[int]],
         embeddings: Optional[Embeddings] = None,
-        progress_bars=False,
     ):
         self._spectra = tuple([spectrum.clone() for spectrum in spectra])
         self.spectrum_indices_per_inchikey: dict[str, tuple[int, ...]] = {
             key: tuple(values) for key, values in spectrum_indices_per_inchikey.items()
         }
-        self.progress_bars = progress_bars
         self._embeddings = embeddings
 
     @classmethod
-    def create_spectrum_set(cls, spectra: Sequence[Spectrum], progress_bars=False) -> "AnnotatedSpectrumSet":
+    def create_spectrum_set(cls, spectra: Sequence[Spectrum]) -> "AnnotatedSpectrumSet":
         spectrum_indices_per_inchikey = defaultdict(list)
-        for spectrum_index, spectrum in enumerate(spectra):
+        for spectrum_index, spectrum in enumerate(tqdm(spectra, desc="Create mapping from inchikey to spectrum")):
             inchikey = spectrum.get("inchikey")
             if inchikey is None:
                 raise ValueError("Annotated Spectrum set expects spectra that all have an inchikey")
             spectrum_indices_per_inchikey[inchikey[:14]].append(spectrum_index)
-        return cls(spectra, spectrum_indices_per_inchikey, progress_bars=progress_bars)
+        return cls(spectra, spectrum_indices_per_inchikey)
 
     def __add__(self, other) -> "AnnotatedSpectrumSet":
         """Adds two spectrum sets together"""
@@ -52,14 +51,12 @@ class AnnotatedSpectrumSet:
         embeddings = None
         if self._embeddings and other._embeddings:
             embeddings = Embeddings.combine_embeddings(self.embeddings, other.embeddings)
-        return AnnotatedSpectrumSet(
-            spectra, spectrum_indices_per_inchikey, embeddings=embeddings, progress_bars=self.progress_bars
-        )
+        return AnnotatedSpectrumSet(spectra, spectrum_indices_per_inchikey, embeddings=embeddings)
 
     def subset_spectra(self, spectrum_indices) -> "AnnotatedSpectrumSet":
         """Returns a new instance of a subset of the spectra"""
         spectra = [self._spectra[index] for index in spectrum_indices]
-        new_instance = AnnotatedSpectrumSet.create_spectrum_set(spectra, progress_bars=self.progress_bars)
+        new_instance = AnnotatedSpectrumSet.create_spectrum_set(spectra)
         if self._embeddings is not None:
             new_instance._embeddings = self.embeddings.subset_embeddings(spectra)
         return new_instance
@@ -88,9 +85,7 @@ class AnnotatedSpectrumSet:
         return tuple(self.spectrum_indices_per_inchikey.keys())
 
     def __copy__(self):
-        return AnnotatedSpectrumSet(
-            self.spectra, self.spectrum_indices_per_inchikey, self.embeddings, progress_bars=self.progress_bars
-        )
+        return AnnotatedSpectrumSet(self.spectra, self.spectrum_indices_per_inchikey, self.embeddings)
 
     def __eq__(self, other: object):
         if not isinstance(other, AnnotatedSpectrumSet):
