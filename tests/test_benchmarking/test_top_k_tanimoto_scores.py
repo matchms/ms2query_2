@@ -20,5 +20,9 @@ def test_methods_top_k_tanimoto_scores():
 
 
 def test_calculate_from_fingerprints():
-    fingerprints = make_test_fingerprints(20)
-    TopKTanimotoScores.calculate_from_fingerprints(fingerprints, fingerprints, 10)
+    fingerprints = make_test_fingerprints(nbits=5, nr_of_inchikeys=5)
+    top_scores = TopKTanimotoScores.calculate_from_fingerprints(fingerprints, fingerprints, 2)
+    assert top_scores.select_top_k_inchikeys_and_scores("AAAAAAAAAAAAAE") == {
+        "AAAAAAAAAAAAAD": 0.75,
+        "AAAAAAAAAAAAAE": 1.0,
+    }
