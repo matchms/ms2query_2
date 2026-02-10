@@ -18,8 +18,6 @@ class EvaluateAnalogueSearch:
 
         self.fingerprints = Fingerprints.from_spectrum_set(training_spectrum_set + validation_spectrum_set,
                                                            fingerprint_type, nbits)
-        self.training_spectrum_set.progress_bars = False
-        self.validation_spectrum_set.progress_bars = False
 
     def benchmark_analogue_search(
             self, predicted_inchikeys: List[str],
