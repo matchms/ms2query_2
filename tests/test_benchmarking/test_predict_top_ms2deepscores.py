@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
-from ms2query.benchmarking.reference_methods.predict_top_ms2deepscores import (
-    predict_top_ms2deepscores,
+from ms2query.benchmarking.reference_methods.predict_top_k_ms2deepscore import (
+    predict_top_k_ms2deepscores,
     select_inchikeys_with_highest_ms2deepscore,
 )
 from tests.helper_functions import create_test_spectra, get_library_and_test_spectra_not_identical, ms2deepscore_model
@@ -11,7 +11,7 @@ from tests.helper_functions import create_test_spectra, get_library_and_test_spe
 @pytest.mark.parametrize(
     "method",
     [
-        predict_top_ms2deepscores,
+        predict_top_k_ms2deepscores,
     ],
 )
 def test_predict_highest_ms2deepscore_similarity(method):

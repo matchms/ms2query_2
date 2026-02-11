@@ -4,7 +4,7 @@ from matchms.similarity.vector_similarity_functions import jaccard_similarity_ma
 from tqdm import tqdm
 from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.benchmarking.Fingerprints import Fingerprints
-from ms2query.benchmarking.reference_methods.predict_top_ms2deepscores import predict_top_ms2deepscores
+from ms2query.benchmarking.reference_methods.predict_top_k_ms2deepscore import predict_top_k_ms2deepscores
 
 
 def predict_with_integrated_similarity_flow(
@@ -14,7 +14,7 @@ def predict_with_integrated_similarity_flow(
     number_of_analogues_to_consider=50,
 ) -> Tuple[List[str], List[float]]:
 
-    all_indexes_of_library_spectra_with_highest_score, all_predicted_scores = predict_top_ms2deepscores(
+    all_indexes_of_library_spectra_with_highest_score, all_predicted_scores = predict_top_k_ms2deepscores(
         library_spectra.embeddings, query_spectra.embeddings, k=number_of_analogues_to_consider
     )
     inchikeys_of_best_matches = []

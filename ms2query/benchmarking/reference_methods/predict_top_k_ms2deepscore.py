@@ -6,7 +6,7 @@ from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.benchmarking.Embeddings import Embeddings
 
 
-def predict_top_ms2deepscores(
+def predict_top_k_ms2deepscores(
     library_embeddings: Embeddings, query_embeddings: Embeddings, batch_size: int = 500, k=1
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Memory efficient way of calculating the highest MS2DeepScores
@@ -52,16 +52,30 @@ def select_inchikeys_with_highest_ms2deepscore(
     query_spectra: AnnotatedSpectrumSet,
     library_spectra: AnnotatedSpectrumSet,
     nr_of_inchikeys_to_select=100,
-    ms2deepscores: Optional[np.ndarray] = None,
+    batch_size=500,
+) -> list[list[str]]:
+    top_inchikeys_per_query_spectrum = []
+    # loop over the batches
+    for start_idx in tqdm(
+        range(0, len(query_spectra), batch_size),
+        desc="Selecting highest ms2deepscore",
+        total=batch_size // len(query_spectra) + 1,
+    ):
+        end_idx = min(start_idx + batch_size, len(query_spectra))
+        selected_query_embeddings = query_spectra.embeddings.embeddings[start_idx:end_idx]
+        score_matrix = cosine_similarity_matrix(selected_query_embeddings, library_spectra.embeddings.embeddings)
+        top_inchikeys_per_query_spectrum.extend(
+            get_inchikeys_with_highest_ms2deepscore(library_spectra, score_matrix, nr_of_inchikeys_to_select)
+        )
+    return top_inchikeys_per_query_spectrum
+
+
+def get_inchikeys_with_highest_ms2deepscore(
+    library_spectra: AnnotatedSpectrumSet,
+    ms2deepscores: np.ndarray,
+    nr_of_inchikeys_to_select=100,
 ) -> list[list[str]]:
     """Selects the top x inchikeys with the highest score for each query spectrum"""
-    if ms2deepscores is None:
-        ms2deepscores = cosine_similarity_matrix(
-            query_spectra.embeddings.embeddings, library_spectra.embeddings.embeddings
-        )
-    else:
-        assert ms2deepscores.shape == (len(query_spectra.spectra), len(library_spectra.spectra))
-
     max_ms2deepscores_per_inchikey = np.zeros(
         (ms2deepscores.shape[0], len(library_spectra.spectrum_indices_per_inchikey))
     )
