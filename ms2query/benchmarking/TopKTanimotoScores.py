@@ -53,7 +53,7 @@ class TopKTanimotoScores:
         # Convert to dictionary with inchikey, score pairs.
         return dict(zip(top_k_inchikeys_and_scores["inchikey"], top_k_inchikeys_and_scores["score"]))
 
-    def select_top_k_inchikeys(self, inchikey) -> list[float]:
+    def select_top_k_inchikeys(self, inchikey) -> list[str]:
         return list(self.top_k_inchikeys_and_scores.loc[inchikey].xs("inchikey", level="attribute"))
 
     def select_average_score(self, inchikey) -> float:
