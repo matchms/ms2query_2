@@ -27,7 +27,7 @@ class Embeddings:
             raise ValueError("There are duplicated spectra in the spectrum list")
 
         model_settings = model.model_settings.get_dict()
-        embeddings = compute_embedding_array(model, spectra)
+        embeddings: np.ndarray = compute_embedding_array(model, spectra)  # type: ignore
         return cls(embeddings, index_to_spectrum_hash, model_settings)
 
     @classmethod
