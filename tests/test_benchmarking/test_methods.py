@@ -26,7 +26,7 @@ def test_all_methods(prediction_function):
     library_spectra, test_spectra = get_library_and_test_spectra_exactly_matching()
     predicted_inchikeys, scores = prediction_function(library_spectra, test_spectra)
     for i, spectrum in enumerate(test_spectra.spectra):
-        inchikey = spectrum.get("inchikey")[:14]
+        inchikey = spectrum.get("inchikey")[:14]  # type: ignore
         assert predicted_inchikeys[i] == inchikey
         assert np.allclose(scores[i], np.array(1.0), atol=1e-5)
 
@@ -36,7 +36,7 @@ def test_predict_best_possible_match():
     fingerprints = Fingerprints.from_spectrum_set(library_spectra + test_spectra, "daylight", 2048)
     predicted_inchikeys, scores = predict_best_possible_match(library_spectra, test_spectra, fingerprints)
     for i, spectrum in enumerate(test_spectra.spectra):
-        inchikey = spectrum.get("inchikey")[:14]
+        inchikey = spectrum.get("inchikey")[:14]  # type: ignore
         assert predicted_inchikeys[i] == inchikey
         assert np.allclose(scores[i], np.array(1.0), atol=1e-5)
 
