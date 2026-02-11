@@ -97,3 +97,6 @@ class AnnotatedSpectrumSet:
         if self._embeddings != other._embeddings:
             return False
         return True
+
+    def __len__(self):
+        return len(self._spectra)
