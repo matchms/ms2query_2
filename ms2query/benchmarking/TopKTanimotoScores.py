@@ -11,7 +11,7 @@ class TopKTanimotoScores:
         """Stores the top k scores between two lists of inchikeys"""
 
         self.k = tanimoto_scores_for_top_k.shape[1]
-        self.top_k_inchikeys_and_scores = self._create_multi_index(
+        self.top_k_inchikeys_and_scores: pd.DataFrame = self._create_multi_index(
             tanimoto_scores_for_top_k, top_k_inchikeys, inchikey_indexes
         )
 
@@ -62,7 +62,8 @@ class TopKTanimotoScores:
 
     def get_all_average_tanimoto_scores(self) -> dict[str, float]:
         """Returns all average tanimoto scores for the top k per inchikey"""
-        average_per_inchikey_df = self.top_k_inchikeys_and_scores.xs("score", axis=1, level="attribute").mean(axis=1)  # type: ignore
-        # convert to dictionary
-        average_per_inchikey = average_per_inchikey_df.squeeze().to_dict()
-        return average_per_inchikey
+        # Get the scores
+        scores_df: pd.DataFrame = self.top_k_inchikeys_and_scores.xs("score", axis=1, level="attribute")  # type: ignore
+
+        average_per_inchikey_df = scores_df.mean(axis=1)
+        return average_per_inchikey_df.to_dict()
