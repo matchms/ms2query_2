@@ -1,3 +1,4 @@
+import pytest
 from ms2query.benchmarking.AnnotatedSpectrumSet import (
     AnnotatedSpectrumSet,
 )
@@ -60,3 +61,18 @@ def test_subset_on_metadata():
     spectrum_set.add_embeddings(model)
 
     assert correct_subsetted_set == spectrum_set.subset_spectra_on_metadata("ionmode", set(["positive"]))
+
+
+def test_add_embeddings():
+    test_spectra = create_test_spectra(nr_of_inchikeys=3, number_of_spectra_per_inchikey=3)
+
+    spectrum_set = AnnotatedSpectrumSet.create_spectrum_set(test_spectra)
+
+    subset_of_spectra = AnnotatedSpectrumSet.create_spectrum_set(test_spectra[:5])
+    spectrum_set = AnnotatedSpectrumSet.create_spectrum_set(test_spectra)
+    # with added embededings
+    model = ms2deepscore_model()
+    subset_of_spectra.add_embeddings(model)
+    with pytest.raises(ValueError):
+        # The spectra don't match so it should raise a valueerror
+        spectrum_set.embeddings = subset_of_spectra.embeddings

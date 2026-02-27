@@ -19,7 +19,7 @@ class AnnotatedSpectrumSet:
         self.spectrum_indices_per_inchikey: dict[str, tuple[int, ...]] = {
             key: tuple(values) for key, values in spectrum_indices_per_inchikey.items()
         }
-        self._embeddings = embeddings
+        self.embeddings = embeddings
 
     @classmethod
     def create_spectrum_set(cls, spectra: Sequence[Spectrum]) -> "AnnotatedSpectrumSet":
@@ -98,6 +98,17 @@ class AnnotatedSpectrumSet:
         if self._embeddings is None:
             raise ValueError("First run the 'add_embeddings' method")
         return self._embeddings
+
+    @embeddings.setter
+    def embeddings(self, embeddings: Optional[Embeddings]):
+        if embeddings is None:
+            self._embeddings = embeddings
+            return
+        if not embeddings.index_to_spectrum_hash == tuple(spectrum.__hash__() for spectrum in self.spectra):
+            raise ValueError(
+                "The embeddings spectrum hashes don't match the spectrum hashes, make sure you use matching embeddings"
+            )
+        self._embeddings = embeddings
 
     @property
     def inchikeys(self):
