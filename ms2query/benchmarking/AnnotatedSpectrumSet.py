@@ -71,6 +71,12 @@ class AnnotatedSpectrumSet:
         self._embeddings = Embeddings.create_from_spectra(self._spectra, model)
 
     @property
+    def has_embeddings(self) -> bool:
+        if self._embeddings is None:
+            return False
+        return True
+
+    @property
     def spectra(self):
         return self._spectra
 
