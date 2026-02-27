@@ -1,6 +1,9 @@
+import os
 from collections import defaultdict
 from typing import Iterable, List, Mapping, Optional, Sequence
 from matchms import Spectrum
+from matchms.exporting import save_spectra
+from matchms.importing import load_spectra
 from ms2deepscore.models import SiameseSpectralModel
 from tqdm import tqdm
 from ms2query.benchmarking.Embeddings import Embeddings
@@ -144,3 +147,23 @@ class AnnotatedSpectrumSet:
             with_embeddings = "with embeddings"
 
         return f"{len(self)} spectra for {len(self.inchikeys)} inchikeys {with_embeddings}"
+
+    def save(self, save_file: str) -> None:
+        """Save spectra to the specified path"""
+        save_spectra(list(self._spectra), save_file)
+
+        if self._embeddings is not None:
+            embedding_save_name = os.path.splitext(save_file)[0] + "_embeddings.npz"
+            print(f"Saving embeddings at {embedding_save_name}")
+            self._embeddings.save(embedding_save_name)
+
+    @classmethod
+    def load(cls, spectrum_file: str) -> "AnnotatedSpectrumSet":
+        """Load mass spectra into a AnnotatedSpectrumSet, if embeddings are available they are loaded too"""
+        spectra = list(load_spectra(spectrum_file))
+
+        embedding_file_name = os.path.splitext(spectrum_file)[0] + "_embeddings.npz"
+        instance = cls.create_spectrum_set(spectra)
+        if os.path.exists(embedding_file_name):
+            instance.embeddings = Embeddings.load(embedding_file_name)
+        return instance

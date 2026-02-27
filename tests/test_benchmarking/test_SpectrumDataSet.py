@@ -1,3 +1,5 @@
+import os
+
 import pytest
 from ms2query.benchmarking.AnnotatedSpectrumSet import (
     AnnotatedSpectrumSet,
@@ -76,3 +78,19 @@ def test_add_embeddings():
     with pytest.raises(ValueError):
         # The spectra don't match so it should raise a valueerror
         spectrum_set.embeddings = subset_of_spectra.embeddings
+
+
+def test_save_and_load(tmp_path):
+    test_spectra = create_test_spectra(nr_of_inchikeys=3, number_of_spectra_per_inchikey=3)
+    spectrum_set = AnnotatedSpectrumSet.create_spectrum_set(test_spectra)
+    file_name = os.path.join(tmp_path, "spectra.mgf")
+    spectrum_set.save(file_name)
+    loaded_spectrum_set = spectrum_set.load(file_name)
+    assert spectrum_set == loaded_spectrum_set
+
+    model = ms2deepscore_model()
+    spectrum_set.add_embeddings(model)
+    file_name = os.path.join(tmp_path, "spectra_2.mgf")
+    spectrum_set.save(file_name)
+    loaded_spectrum_set = spectrum_set.load(file_name)
+    assert spectrum_set == loaded_spectrum_set
