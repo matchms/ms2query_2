@@ -19,16 +19,16 @@ def test_subset_embeddings():
         embeddings.subset_embeddings(test_spectra)
 
 
-def test_combine_embeddings():
+def test_add_embeddings():
     test_spectra = create_test_spectra()
     model = ms2deepscore_model()
     embeddings_1 = Embeddings.create_from_spectra(test_spectra[:4], model)
     embeddings_2 = Embeddings.create_from_spectra(test_spectra[4:], model)
     correct_combined_embeddings = Embeddings.create_from_spectra(test_spectra, model)
-    combined_embeddings = Embeddings.combine_embeddings(embeddings_1, embeddings_2)
+    combined_embeddings = embeddings_1 + embeddings_2
     assert combined_embeddings == correct_combined_embeddings
     with pytest.raises(ValueError):
-        Embeddings.combine_embeddings(embeddings_1, embeddings_1)
+        _ = embeddings_1 + embeddings_1
 
 
 def test_calculate_ms2deepscore_df():

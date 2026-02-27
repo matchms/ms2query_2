@@ -30,16 +30,16 @@ class Embeddings:
         embeddings: np.ndarray = compute_embedding_array(model, spectra)  # type: ignore
         return cls(embeddings, index_to_spectrum_hash, model_settings)
 
-    @classmethod
-    def combine_embeddings(cls, embeddings_1: "Embeddings", embeddings_2: "Embeddings") -> "Embeddings":
-        if embeddings_1.model_settings != embeddings_2.model_settings:
+    def __add__(self, other: "Embeddings") -> "Embeddings":
+        if not isinstance(other, Embeddings):
+            return NotImplemented
+        if self.model_settings != other.model_settings:
             raise ValueError("Model settings of merged embeddings do not match")
-        if not set(embeddings_1.index_to_spectrum_hash).isdisjoint(embeddings_2.index_to_spectrum_hash):
-            # todo allow this to happen, but remove repeating ones and check that they are the same.
+        if not set(self.index_to_spectrum_hash).isdisjoint(other.index_to_spectrum_hash):
             raise ValueError("There are repeated spectra in the embeddings that are added together")
-        combined_embeddings = np.vstack([embeddings_1.embeddings, embeddings_2.embeddings])
-        index_to_spectrum_hash = embeddings_1.index_to_spectrum_hash + embeddings_2.index_to_spectrum_hash
-        return cls(combined_embeddings, index_to_spectrum_hash, embeddings_1.model_settings)
+        combined_embeddings = np.vstack([self._embeddings, other._embeddings])
+        index_to_spectrum_hash = self.index_to_spectrum_hash + other.index_to_spectrum_hash
+        return Embeddings(combined_embeddings, index_to_spectrum_hash, self._model_settings)
 
     def subset_embeddings(self, spectra):
         spectrum_hashes = tuple(spectrum.__hash__() for spectrum in spectra)
