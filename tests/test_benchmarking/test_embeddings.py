@@ -1,3 +1,4 @@
+import os
 import pytest
 from ms2query.benchmarking.Embeddings import Embeddings, calculate_ms2deepscore_df
 from tests.helper_functions import create_test_spectra, get_library_and_test_spectra_not_identical, ms2deepscore_model
@@ -34,3 +35,13 @@ def test_add_embeddings():
 def test_calculate_ms2deepscore_df():
     library_spectra, query_spectra = get_library_and_test_spectra_not_identical()
     calculate_ms2deepscore_df(library_spectra.embeddings, query_spectra.embeddings)
+
+
+def test_save_and_load(tmp_path):
+    test_spectra = create_test_spectra()
+    model = ms2deepscore_model()
+    embeddings = Embeddings.create_from_spectra(test_spectra[:4], model)
+    file_name = os.path.join(tmp_path, "embeddings.npz")
+    embeddings.save(file_name)
+    loaded_embeddings = Embeddings.load(file_name)
+    assert embeddings == loaded_embeddings
