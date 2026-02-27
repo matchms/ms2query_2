@@ -108,3 +108,17 @@ class AnnotatedSpectrumSet:
 
     def __len__(self):
         return len(self._spectra)
+
+    def __repr__(self):
+        return (
+            f"AnnotatedSpectrumSet(nr_of_spectra = {len(self)},"
+            f"nr_of_unique_inchikeys = {len(self.inchikeys)}, "
+            f"has_embeddings={self.has_embeddings})"
+        )
+
+    def __str__(self):
+        with_embeddings = ""
+        if self.has_embeddings:
+            with_embeddings = "with embeddings"
+
+        return f"{len(self)} spectra for {len(self.inchikeys)} inchikeys {with_embeddings}"
