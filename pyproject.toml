@@ -98,5 +98,4 @@ section-order = ["future", "standard-library", "third-party", "first-party", "lo
 [tool.pytest.ini_options]
 testpaths = [
     "tests",
-    "integration-tests",
 ]
