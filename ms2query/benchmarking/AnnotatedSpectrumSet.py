@@ -59,7 +59,7 @@ class AnnotatedSpectrumSet:
         """Returns a new instance of a subset of the spectra"""
         spectra = [self._spectra[index] for index in spectrum_indices]
         new_instance = AnnotatedSpectrumSet.create_spectrum_set(spectra)
-        if self._embeddings is not None:
+        if self.has_embeddings:
             new_instance._embeddings = self.embeddings.subset_embeddings(spectra)
         return new_instance
 
@@ -83,7 +83,7 @@ class AnnotatedSpectrumSet:
         return self._spectra
 
     @property
-    def embeddings(self) -> "Embeddings":
+    def embeddings(self) -> Embeddings:
         if self._embeddings is None:
             raise ValueError("First run the 'add_embeddings' method")
         return self._embeddings
