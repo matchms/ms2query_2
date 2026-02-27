@@ -48,8 +48,10 @@ class AnnotatedSpectrumSet:
                 spectrum_indices_per_inchikey[inchikey].extend(indices)
 
         # combine embeddings
+        if self.has_embeddings != other.has_embeddings:
+            print("Only one of the two sets has an embeddings, so embeddings are not added")
         embeddings = None
-        if self._embeddings and other._embeddings:
+        if self.has_embeddings and other.has_embeddings:
             embeddings = Embeddings.combine_embeddings(self.embeddings, other.embeddings)
         return AnnotatedSpectrumSet(spectra, spectrum_indices_per_inchikey, embeddings=embeddings)
 
