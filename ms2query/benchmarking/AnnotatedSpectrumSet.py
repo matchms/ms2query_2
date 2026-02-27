@@ -93,7 +93,7 @@ class AnnotatedSpectrumSet:
         return tuple(self.spectrum_indices_per_inchikey.keys())
 
     def __copy__(self):
-        return AnnotatedSpectrumSet(self.spectra, self.spectrum_indices_per_inchikey, self.embeddings)
+        return AnnotatedSpectrumSet(self.spectra, self.spectrum_indices_per_inchikey, self._embeddings)
 
     def __eq__(self, other: object):
         if not isinstance(other, AnnotatedSpectrumSet):
