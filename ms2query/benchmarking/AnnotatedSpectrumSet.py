@@ -97,7 +97,7 @@ class AnnotatedSpectrumSet:
 
     def __eq__(self, other: object):
         if not isinstance(other, AnnotatedSpectrumSet):
-            raise ValueError("__Eq__ can only be done between two AnnotatedSpectrumSets")
+            return NotImplemented("__Eq__ can only be done between two AnnotatedSpectrumSets")
         if self.spectra != other.spectra:
             return False
         if self.spectrum_indices_per_inchikey != other.spectrum_indices_per_inchikey:
