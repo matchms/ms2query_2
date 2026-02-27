@@ -40,3 +40,23 @@ def test_subsetting():
     spectrum_set.add_embeddings(model)
 
     assert correct_subsetted_set == spectrum_set.subset_spectra([0, 1, 2, 3, 4])
+
+
+def test_subset_on_metadata():
+    test_spectra = create_test_spectra(nr_of_inchikeys=3, number_of_spectra_per_inchikey=3)
+
+    test_spectra[0].set("ionmode", "positive")
+    test_spectra[5].set("ionmode", "positive")
+    test_spectra[7].set("ionmode", "positive")
+
+    correct_subsetted_set = AnnotatedSpectrumSet.create_spectrum_set(
+        [test_spectra[0], test_spectra[5], test_spectra[7]]
+    )
+    spectrum_set = AnnotatedSpectrumSet.create_spectrum_set(test_spectra)
+
+    # with added embededings
+    model = ms2deepscore_model()
+    correct_subsetted_set.add_embeddings(model)
+    spectrum_set.add_embeddings(model)
+
+    assert correct_subsetted_set == spectrum_set.subset_spectra_on_metadata("ionmode", set(["positive"]))

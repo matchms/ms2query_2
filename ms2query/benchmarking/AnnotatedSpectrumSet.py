@@ -52,7 +52,7 @@ class AnnotatedSpectrumSet:
             print("Only one of the two sets has an embeddings, so embeddings are not added")
         embeddings = None
         if self.has_embeddings and other.has_embeddings:
-            embeddings = Embeddings.combine_embeddings(self.embeddings, other.embeddings)
+            embeddings = self.embeddings + other.embeddings
         return AnnotatedSpectrumSet(spectra, spectrum_indices_per_inchikey, embeddings=embeddings)
 
     def subset_spectra(self, spectrum_indices) -> "AnnotatedSpectrumSet":
@@ -62,6 +62,17 @@ class AnnotatedSpectrumSet:
         if self.has_embeddings:
             new_instance._embeddings = self.embeddings.subset_embeddings(spectra)
         return new_instance
+
+    def subset_spectra_on_metadata(self, metadata_key: str, values_to_keep: set) -> "AnnotatedSpectrumSet":
+        """Creates a subset from the spectra by checking for specific metadata keys
+
+        E.g. subset_spectra_on_metadata("ionmode", set(["positive"])) will return only the spectra in positive ion mode
+        """
+        spectrum_indexes_to_keep = []
+        for spectrum_index, spectrum in enumerate(tqdm(self.spectra, desc="Checking spectra for correct metadata")):
+            if spectrum.get(metadata_key) in values_to_keep:
+                spectrum_indexes_to_keep.append(spectrum_index)
+        return self.subset_spectra(spectrum_indexes_to_keep)
 
     def spectra_per_inchikey(self, inchikey) -> List[Spectrum]:
         matching_spectra = []
