@@ -1,5 +1,4 @@
 import os
-
 import pytest
 from ms2query.benchmarking.AnnotatedSpectrumSet import (
     AnnotatedSpectrumSet,
