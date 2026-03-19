@@ -159,7 +159,7 @@ class AnnotatedSpectrumSet:
 
     @classmethod
     def load(cls, spectrum_file: str) -> "AnnotatedSpectrumSet":
-        """Load mass spectra into a AnnotatedSpectrumSet, if embeddings are available they are loaded too"""
+        """Load mass spectra into a AnnotatedSpectrmuSet, if embeddings are available they are loaded too"""
         spectra = list(load_spectra(spectrum_file))
 
         embedding_file_name = os.path.splitext(spectrum_file)[0] + "_embeddings.npz"
