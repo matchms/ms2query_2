@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-from matchms.similarity.vector_similarity_functions import jaccard_similarity_matrix
 from ms2query.benchmarking.Fingerprints import Fingerprints
 from ms2query.benchmarking.reference_methods.predict_best_possible_match import predict_best_possible_match
 from ms2query.benchmarking.reference_methods.predict_highest_ms2deepscore import predict_highest_ms2deepscore
