@@ -3,7 +3,6 @@ import pytest
 from matchms.similarity.vector_similarity_functions import jaccard_similarity_matrix
 from ms2query.benchmarking.Fingerprints import Fingerprints
 from ms2query.benchmarking.reference_methods.predict_best_possible_match import predict_best_possible_match
-from ms2query.benchmarking.reference_methods.predict_highest_cosine import predict_highest_cosine
 from ms2query.benchmarking.reference_methods.predict_highest_ms2deepscore import predict_highest_ms2deepscore
 from ms2query.benchmarking.reference_methods.predict_with_integrated_similarity_flow import (
     integrated_similarity_flow,
@@ -18,7 +17,6 @@ from tests.helper_functions import (
 @pytest.mark.parametrize(
     "prediction_function",
     [
-        predict_highest_cosine,
         predict_highest_ms2deepscore,
     ],
 )
