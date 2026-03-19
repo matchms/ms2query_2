@@ -3,7 +3,7 @@ from ms2deepscore.vector_operations import cosine_similarity_matrix
 from tqdm import tqdm
 from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.benchmarking.Fingerprints import Fingerprints
-from ms2query.benchmarking.reference_methods.predict_top_k_ms2deepscore import (
+from ms2query.benchmarking.predict_top_k_ms2deepscore import (
     select_inchikeys_with_highest_ms2deepscore,
 )
 from ms2query.benchmarking.TopKTanimotoScores import TopKTanimotoScores
