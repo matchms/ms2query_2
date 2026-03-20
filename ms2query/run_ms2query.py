@@ -71,3 +71,13 @@ def get_ms2query_reliability_prediction(
         ms2query_scores.append(np.mean(maximum_ms2deepscores))
     # todo get the spectrum hashes instead of the indexes for lookup later.
     return ms2query_scores
+
+
+def extract_metadata_from_library(spectra: AnnotatedSpectrumSet, metadata_to_collect: list):
+    collected_metadata = {key: [] for key in metadata_to_collect}
+    collected_metadata["spectrum_hashes"] = []
+    for spectrum in tqdm(spectra.spectra, desc="Extracting metadata df from spectra"):
+        for metadata_key in metadata_to_collect:
+            collected_metadata[metadata_key].append(spectrum.get(metadata_key))
+        collected_metadata["spectrum_hashes"].append(spectrum.__hash__())
+    return pd.DataFrame(collected_metadata)
