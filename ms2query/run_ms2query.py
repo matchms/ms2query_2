@@ -1,4 +1,5 @@
 import json
+from collections import defaultdict
 from pathlib import Path
 from typing import Sequence, Tuple
 import numpy as np
@@ -14,11 +15,34 @@ from ms2query.benchmarking.Fingerprints import Fingerprints
 from ms2query.benchmarking.TopKTanimotoScores import TopKTanimotoScores
 
 
+def run_ms2query_from_files(
+    query_spectrum_file,
+    ms2deepscore_model_file_name,
+    reference_embeddings_file,
+    top_k_tanimoto_scores_file,
+    reference_metadata_file,
+):
+    reference_embeddings = Embeddings.load(reference_embeddings_file)
+    top_k_tanimoto_scores = TopKTanimotoScores.load(top_k_tanimoto_scores_file)
+    reference_metadata = pd.read_parquet(reference_metadata_file)
+    # Get the spectrum_indices_per_inchikey
+    spectrum_indices_per_inchikey = defaultdict(list)
+    for lib_spec_index, inchikey in enumerate(reference_metadata["inchikey"]):
+        spectrum_indices_per_inchikey[inchikey[:14]].append(lib_spec_index)
+
+    query_spectra = list(tqdm(load_spectra(query_spectrum_file), desc="loading_in_query_spectra"))
+    ms2deepscore_model = load_model(ms2deepscore_model_file_name)
+    query_embeddings = Embeddings.create_from_spectra(query_spectra, ms2deepscore_model)
+    run_ms2query(
+        query_embeddings, reference_embeddings, reference_metadata, spectrum_indices_per_inchikey, top_k_tanimoto_scores
+    )
+
+
 def run_ms2query(
     query_embeddings: Embeddings,
     library_embeddings: Embeddings,
     library_metadata: pd.DataFrame,
-    spectrum_indices_per_inchikey: dict[str, Tuple[int, ...]],
+    spectrum_indices_per_inchikey: defaultdict[str, list[int]],
     top_k_tanimoto_scores: TopKTanimotoScores,
     batch_size: int = 1000,
 ):
