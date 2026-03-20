@@ -73,6 +73,47 @@ def get_ms2query_reliability_prediction(
     return ms2query_scores
 
 
+def create_ms2query_library(library_spectra_file: str, ms2deepscore_model_file_name: str):
+    """Loads in a library and saves the embeddings and top_k_tanimoto_scores"""
+    spectrum_file_directory = Path("/some/dir/file.txt").parent
+    embedding_file_location = spectrum_file_directory / "embeddings.npz"
+    top_k_tanimoto_score_file_location = spectrum_file_directory / "top_k_tanimoto_scores.parquet"
+    reference_metadata_file = spectrum_file_directory / "library_metadata.parquet"
+    if embedding_file_location.exists():
+        raise FileExistsError("There is already an embedding.npy file in the directory of your library spectra")
+    if top_k_tanimoto_score_file_location.exists():
+        raise FileExistsError(
+            "There is already an top_k_tanimoto_scores.parquet file in the directory of your library spectra"
+        )
+
+    library_spectra = list(tqdm(load_spectra(library_spectra_file), "Loading library spectra"))
+    library_spectra = AnnotatedSpectrumSet.create_spectrum_set(library_spectra)
+    ms2deepscore_model = load_model(ms2deepscore_model_file_name)
+    library_spectra.add_embeddings(ms2deepscore_model)
+
+    library_spectra._embeddings.save(embedding_file_location)
+
+    fingerprints = Fingerprints.from_spectrum_set(library_spectra, "daylight", 4096)
+    top_k_tanimoto_scores = TopKTanimotoScores.calculate_from_fingerprints(
+        fingerprints,
+        fingerprints,
+        k=8,
+    )
+    top_k_tanimoto_scores.save(top_k_tanimoto_score_file_location)
+    reference_metadata = extract_metadata_from_library(
+        library_spectra,
+        [
+            "precursor_mz",
+            "retention_time",
+            "collision_energy",
+            "compound_name",
+            "smiles",
+            "inchikey",
+        ],
+    )
+    reference_metadata.to_parquet(reference_metadata_file)
+
+
 def extract_metadata_from_library(spectra: AnnotatedSpectrumSet, metadata_to_collect: list):
     collected_metadata = {key: [] for key in metadata_to_collect}
     collected_metadata["spectrum_hashes"] = []
