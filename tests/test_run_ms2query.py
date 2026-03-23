@@ -1,13 +1,10 @@
 import os
-
 import pandas as pd
-
 from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.benchmarking.Fingerprints import Fingerprints
 from ms2query.benchmarking.TopKTanimotoScores import TopKTanimotoScores
-from ms2query.run_ms2query import extract_metadata_from_library, run_ms2query_from_files, MS2QueryLibrary
+from ms2query.run_ms2query import MS2QueryLibrary, extract_metadata_from_library, run_ms2query_from_files
 from tests.helper_functions import TEST_RESOURCES_PATH, create_test_spectra, ms2deepscore_model
-from matchms.exporting import save_as_mgf
 
 
 def test_run_ms2query():
