@@ -1,8 +1,8 @@
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from ms2query.ms2query_development.Fingerprints import Fingerprints
 from ms2query.metrics import generalized_tanimoto_similarity_matrix
+from ms2query.ms2query_development.Fingerprints import Fingerprints
 
 
 class TopKTanimotoScores:
