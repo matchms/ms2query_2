@@ -2,28 +2,11 @@
 
 
 # MS2Query 2.0
-more to come...
+A first basic implementation is out now, more to follow soon...
+The new MS2Query appraoch has a higher accuracy and has a much simpler and faster underlying algorithm. We will hopefully soon share a first preprint as well, showing all the benchmarking. 
 
-## Basic workflow (so far):
+The current runably version still requires to create the library files, which takes some time for the first run. 
 
-### Library generation
-```python
-from ms2query.create_new_library import create_new_library
+Soon this will be much easier and faster. We will add downloadable precomputed files, make MS2Query pip installable, add a database and allow faster MS2DeepScore searching. 
 
-ms2query_lib = create_new_library(
-    spectra_files=["spectra.mgf"],
-    annotation_files=[],
-    output_folder="my_ms2query_folder/",
-    model_path="models/ms2deepscore.pt"
-)
-```
-
-### Loading already generated library
-```python
-from ms2query.create_new_library import load_created_library
-
-lib = load_created_library("my_ms2query_folder/")
-```
-
-
-
+The tutorial for the current prototype can be found in notebooks/tutorial. 
