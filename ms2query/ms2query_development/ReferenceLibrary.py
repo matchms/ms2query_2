@@ -47,7 +47,7 @@ class ReferenceLibrary:
         # Check that the loaded files match
         if _to_json_serializable(ms2deepscore_model.model_settings.get_dict()) != reference_embeddings.model_settings:
             raise ValueError(
-                "The settings of the ms2deepscore model does not match the model used for creating the library embeddings"
+                "The settings of the ms2deepscore model do not match the model used for creating the library embeddings"
             )
         if list(self.reference_metadata["spectrum_hashes"]) != [
             str(spectrum_hash) for spectrum_hash in reference_embeddings.index_to_spectrum_hash

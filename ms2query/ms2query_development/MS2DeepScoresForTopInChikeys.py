@@ -77,7 +77,8 @@ def calculate_MS2DeepScoresForTopKInChikeys(
 class MS2DeepScoresForTopKInChikeys:
     """Stores the MS2DeepScores and Tanimoto scores for the top k closest lib spectra
 
-    This is only needed for the benchmarking and development (in the notebooks) and is not used for running the final verison of MS2Query
+    This is only needed for the benchmarking and development (in the notebooks)
+    and is not used for running the final verison of MS2Query
 
     This allows for quick testing of different reranking strategies. E.g. get_mean is similar to the original MS2Query,
     but it can also be used to make matrixes with both MS2DeepScore and tanimoto scores to train small reranking models.
