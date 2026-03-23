@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from ms2query.benchmarking.TopKTanimotoScores import TopKTanimotoScores
+from ms2query.ms2query_development.TopKTanimotoScores import TopKTanimotoScores
 from tests.helper_functions import make_test_fingerprints
 
 

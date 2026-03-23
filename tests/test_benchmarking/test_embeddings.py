@@ -1,6 +1,6 @@
 import os
 import pytest
-from ms2query.benchmarking.Embeddings import Embeddings, calculate_ms2deepscore_df
+from ms2query.ms2query_development.Embeddings import Embeddings, calculate_ms2deepscore_df
 from tests.helper_functions import create_test_spectra, get_library_and_test_spectra_not_identical, ms2deepscore_model
 
 

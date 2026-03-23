@@ -4,8 +4,8 @@ from pathlib import Path
 import numpy as np
 from matchms.Spectrum import Spectrum
 from ms2deepscore.models import load_model
-from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
-from ms2query.benchmarking.Fingerprints import Fingerprints
+from ms2query.ms2query_development.AnnotatedSpectrumSet import AnnotatedSpectrumSet
+from ms2query.ms2query_development.Fingerprints import Fingerprints
 
 
 TEST_RESOURCES_PATH = Path(__file__).parent / "test_data"

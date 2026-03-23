@@ -1,9 +1,9 @@
 import os
 import pandas as pd
-from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
-from ms2query.benchmarking.Fingerprints import Fingerprints
-from ms2query.benchmarking.TopKTanimotoScores import TopKTanimotoScores
-from ms2query.benchmarking.ReferenceLibrary import (
+from ms2query.ms2query_development.AnnotatedSpectrumSet import AnnotatedSpectrumSet
+from ms2query.ms2query_development.Fingerprints import Fingerprints
+from ms2query.ms2query_development.TopKTanimotoScores import TopKTanimotoScores
+from ms2query.ms2query_development.ReferenceLibrary import (
     ReferenceLibrary,
     extract_metadata_from_library,
     run_ms2query_from_files,
