@@ -2,12 +2,11 @@ import os
 import pandas as pd
 from ms2query.ms2query_development.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.ms2query_development.Fingerprints import Fingerprints
-from ms2query.ms2query_development.TopKTanimotoScores import TopKTanimotoScores
 from ms2query.ms2query_development.ReferenceLibrary import (
     ReferenceLibrary,
     extract_metadata_from_library,
-    run_ms2query_from_files,
 )
+from ms2query.ms2query_development.TopKTanimotoScores import TopKTanimotoScores
 from tests.helper_functions import TEST_RESOURCES_PATH, create_test_spectra, ms2deepscore_model
 
 
