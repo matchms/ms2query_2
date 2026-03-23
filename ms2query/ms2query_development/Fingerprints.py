@@ -5,7 +5,7 @@ import pandas as pd
 from matchms.filtering.metadata_processing.add_fingerprint import _derive_fingerprint_from_inchi
 from numpy.typing import NDArray
 from tqdm import tqdm
-from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
+from ms2query.ms2query_development.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 from ms2query.metrics import generalized_tanimoto_similarity_matrix
 
 

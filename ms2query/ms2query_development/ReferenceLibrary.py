@@ -8,10 +8,10 @@ from matchms.Spectrum import Spectrum
 from ms2deepscore.models import SiameseSpectralModel, load_model
 from ms2deepscore.vector_operations import cosine_similarity_matrix
 from tqdm import tqdm
-from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
-from ms2query.benchmarking.Embeddings import Embeddings, _to_json_serializable
-from ms2query.benchmarking.Fingerprints import Fingerprints
-from ms2query.benchmarking.TopKTanimotoScores import TopKTanimotoScores
+from ms2query.ms2query_development.AnnotatedSpectrumSet import AnnotatedSpectrumSet
+from ms2query.ms2query_development.Embeddings import Embeddings, _to_json_serializable
+from ms2query.ms2query_development.Fingerprints import Fingerprints
+from ms2query.ms2query_development.TopKTanimotoScores import TopKTanimotoScores
 
 
 class ReferenceLibrary:
