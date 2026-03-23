@@ -14,7 +14,7 @@ from ms2query.benchmarking.Fingerprints import Fingerprints
 from ms2query.benchmarking.TopKTanimotoScores import TopKTanimotoScores
 
 
-class MS2QueryLibrary:
+class ReferenceLibrary:
     # Set default file names to enable save and load per library
     embedding_file_name = "embeddings.npz"
     top_k_tanimoto_scores_file_name = "top_k_tanimoto_scores.parquet"
@@ -64,7 +64,7 @@ class MS2QueryLibrary:
             self.spectrum_indices_per_inchikey[inchikey[:14]].append(lib_spec_index)
 
     @classmethod
-    def load_from_directory(cls, library_file_directory) -> "MS2QueryLibrary":
+    def load_from_directory(cls, library_file_directory) -> "ReferenceLibrary":
         reference_embeddings_file = library_file_directory / cls.embedding_file_name
         top_k_tanimoto_scores_file = library_file_directory / cls.top_k_tanimoto_scores_file_name
         reference_metadata_file = library_file_directory / cls.reference_metadata_file_name
@@ -80,7 +80,7 @@ class MS2QueryLibrary:
         reference_embeddings_file,
         top_k_tanimoto_scores_file,
         reference_metadata_file,
-    ) -> "MS2QueryLibrary":
+    ) -> "ReferenceLibrary":
         return cls(
             load_model(ms2deepscore_model_file_name),
             Embeddings.load(reference_embeddings_file),
@@ -95,7 +95,7 @@ class MS2QueryLibrary:
         ms2deepscore_model_file_name: str,
         store_file_directory=None,
         store_files=True,
-    ) -> "MS2QueryLibrary":
+    ) -> "ReferenceLibrary":
         """Creates all the files needed for MS2Query and stores them"""
         if store_file_directory is None:
             store_file_directory = Path(ms2deepscore_model_file_name).parent
@@ -177,7 +177,7 @@ def run_ms2query_from_files(
     reference_metadata_file,
     save_file_location,
 ):
-    ms2query_library = MS2QueryLibrary.load_from_files(
+    ms2query_library = ReferenceLibrary.load_from_files(
         ms2deepscore_model_file_name,
         reference_embeddings_file,
         top_k_tanimoto_scores_file,
