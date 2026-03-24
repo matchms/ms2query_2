@@ -68,7 +68,7 @@ class ReferenceLibrary:
         reference_embeddings_file = library_file_directory / cls.embedding_file_name
         top_k_tanimoto_scores_file = library_file_directory / cls.top_k_tanimoto_scores_file_name
         reference_metadata_file = library_file_directory / cls.reference_metadata_file_name
-        ms2deepscore_model_file_name = library_file_directory = cls.ms2deepscore_model_file_name
+        ms2deepscore_model_file_name = library_file_directory / cls.ms2deepscore_model_file_name
         return cls.load_from_files(
             ms2deepscore_model_file_name, reference_embeddings_file, top_k_tanimoto_scores_file, reference_metadata_file
         )
@@ -99,6 +99,8 @@ class ReferenceLibrary:
         """Creates all the files needed for MS2Query and stores them"""
         if store_file_directory is None:
             store_file_directory = Path(ms2deepscore_model_file_name).parent
+        else:
+            store_file_directory = Path(store_file_directory)
         if store_files:
             # Check the files don't exist yet
             for file in (
