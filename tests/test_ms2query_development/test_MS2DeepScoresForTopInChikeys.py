@@ -1,5 +1,5 @@
 from ms2query.ms2query_development.AnnotatedSpectrumSet import AnnotatedSpectrumSet
-from ms2query.ms2query_development.MS2DeepScoresForTopInChikeys import (
+from ms2query.ms2query_development.reference_methods.MS2DeepScoresForTopInChikeys import (
     calculate_MS2DeepScoresForTopKInChikeys_from_spectra,
 )
 from tests.helper_functions import create_test_spectra, ms2deepscore_model
