@@ -142,7 +142,9 @@ class ReferenceLibrary:
         num_of_query_embeddings = query_embeddings.embeddings.shape[0]
 
         library_index_highest_ms2deepscore = np.zeros((num_of_query_embeddings), dtype=int)
+        highest_ms2deepscore_values = np.zeros((num_of_query_embeddings), dtype=float)
         ms2query_scores = []
+
         for start_idx in tqdm(
             range(0, num_of_query_embeddings, batch_size),
             desc="Predicting highest ms2deepscore per batch of "
@@ -153,20 +155,29 @@ class ReferenceLibrary:
             end_idx = min(start_idx + batch_size, num_of_query_embeddings)
             selected_query_embeddings = query_embeddings.embeddings[start_idx:end_idx]
             score_matrix = cosine_similarity_matrix(selected_query_embeddings, self.reference_embeddings.embeddings)
+
             highest_score_idx = np.argmax(score_matrix, axis=1)
+            highest_score_values = np.max(score_matrix, axis=1)
+
             library_index_highest_ms2deepscore[start_idx:end_idx] = highest_score_idx
+            highest_ms2deepscore_values[start_idx:end_idx] = highest_score_values
 
             # get predicted inchikeys
             predicted_inchikeys = self.reference_metadata.iloc[highest_score_idx]["inchikey"]
+
             # Compute MS2Query reliability score
             ms2query_scores.extend(
                 get_ms2query_reliability_prediction(
-                    predicted_inchikeys, self.spectrum_indices_per_inchikey, self.top_k_tanimoto_scores, score_matrix
+                    predicted_inchikeys,
+                    self.spectrum_indices_per_inchikey,
+                    self.top_k_tanimoto_scores,
+                    score_matrix,
                 )
             )
 
         # construct results df
-        results = self.reference_metadata.iloc[library_index_highest_ms2deepscore]
+        results = self.reference_metadata.iloc[library_index_highest_ms2deepscore].copy()
+        results["predicted_tanimoto"] = highest_ms2deepscore_values
         results["ms2query_reliability_prediction"] = ms2query_scores
         return results
 
