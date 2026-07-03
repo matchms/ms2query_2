@@ -148,7 +148,7 @@ class ReferenceLibrary:
         store_file_directory.mkdir(parents=True, exist_ok=True)
 
         def file_does_not_exist_yet(file_name: Path):
-            if file_name.exists:
+            if file_name.exists():
                 print(f"The file: {file_name} already exists, not saved.")
                 return False
             return True
