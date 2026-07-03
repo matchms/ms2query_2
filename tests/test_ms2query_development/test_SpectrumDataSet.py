@@ -1,0 +1,95 @@
+import os
+import pytest
+from ms2query.ms2query_development.AnnotatedSpectrumSet import (
+    AnnotatedSpectrumSet,
+)
+from tests.helper_functions import create_test_spectra, ms2deepscore_model
+
+
+def test_create_annotated_spectrum_set():
+    test_spectra = create_test_spectra(nr_of_inchikeys=3, number_of_spectra_per_inchikey=3)
+    spectrum_set = AnnotatedSpectrumSet.create_spectrum_set(spectra=test_spectra)
+    assert len(spectrum_set.spectrum_indices_per_inchikey) == 3
+
+
+def test_add_spectrum_sets():
+    test_spectra = create_test_spectra(nr_of_inchikeys=3, number_of_spectra_per_inchikey=3)
+
+    correct_combined_set = AnnotatedSpectrumSet.create_spectrum_set(test_spectra)
+
+    spectrum_set_1 = AnnotatedSpectrumSet.create_spectrum_set(test_spectra[:5])
+    spectrum_set_2 = AnnotatedSpectrumSet.create_spectrum_set(test_spectra[5:])
+
+    # with added embededings
+    model = ms2deepscore_model()
+    spectrum_set_1.add_embeddings(model)
+    spectrum_set_2.add_embeddings(model)
+    correct_combined_set.add_embeddings(model)
+
+    combined_spectra = spectrum_set_1 + spectrum_set_2
+    assert correct_combined_set == combined_spectra
+
+
+def test_subsetting():
+    test_spectra = create_test_spectra(nr_of_inchikeys=3, number_of_spectra_per_inchikey=3)
+
+    correct_subsetted_set = AnnotatedSpectrumSet.create_spectrum_set(test_spectra[:5])
+    spectrum_set = AnnotatedSpectrumSet.create_spectrum_set(test_spectra)
+
+    # with added embededings
+    model = ms2deepscore_model()
+    correct_subsetted_set.add_embeddings(model)
+    spectrum_set.add_embeddings(model)
+
+    assert correct_subsetted_set == spectrum_set.subset_spectra([0, 1, 2, 3, 4])
+
+
+def test_subset_on_metadata():
+    test_spectra = create_test_spectra(nr_of_inchikeys=3, number_of_spectra_per_inchikey=3)
+
+    test_spectra[0].set("ionmode", "positive")
+    test_spectra[5].set("ionmode", "positive")
+    test_spectra[7].set("ionmode", "positive")
+
+    correct_subsetted_set = AnnotatedSpectrumSet.create_spectrum_set(
+        [test_spectra[0], test_spectra[5], test_spectra[7]]
+    )
+    spectrum_set = AnnotatedSpectrumSet.create_spectrum_set(test_spectra)
+
+    # with added embededings
+    model = ms2deepscore_model()
+    correct_subsetted_set.add_embeddings(model)
+    spectrum_set.add_embeddings(model)
+
+    assert correct_subsetted_set == spectrum_set.subset_spectra_on_metadata("ionmode", set(["positive"]))
+
+
+def test_add_embeddings():
+    test_spectra = create_test_spectra(nr_of_inchikeys=3, number_of_spectra_per_inchikey=3)
+
+    spectrum_set = AnnotatedSpectrumSet.create_spectrum_set(test_spectra)
+
+    subset_of_spectra = AnnotatedSpectrumSet.create_spectrum_set(test_spectra[:5])
+    spectrum_set = AnnotatedSpectrumSet.create_spectrum_set(test_spectra)
+    # with added embededings
+    model = ms2deepscore_model()
+    subset_of_spectra.add_embeddings(model)
+    with pytest.raises(ValueError):
+        # The spectra don't match so it should raise a valueerror
+        spectrum_set.embeddings = subset_of_spectra.embeddings
+
+
+def test_save_and_load(tmp_path):
+    test_spectra = create_test_spectra(nr_of_inchikeys=3, number_of_spectra_per_inchikey=3)
+    spectrum_set = AnnotatedSpectrumSet.create_spectrum_set(test_spectra)
+    file_name = os.path.join(tmp_path, "spectra.mgf")
+    spectrum_set.save(file_name)
+    loaded_spectrum_set = spectrum_set.load(file_name)
+    assert spectrum_set == loaded_spectrum_set
+
+    model = ms2deepscore_model()
+    spectrum_set.add_embeddings(model)
+    file_name = os.path.join(tmp_path, "spectra_2.mgf")
+    spectrum_set.save(file_name)
+    loaded_spectrum_set = spectrum_set.load(file_name)
+    assert spectrum_set == loaded_spectrum_set

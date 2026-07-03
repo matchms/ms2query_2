@@ -32,6 +32,7 @@ ms2deepscore= ">=2.6.0"
 rdkit= ">2024.3.4"
 nmslib= ">=2.0.0"
 umap-learn= ">=0.5.7"
+pyarrow= ">=14.0.1"
 
 [tool.poetry.group.dev.dependencies]
 decorator = "^5.1.1"
@@ -49,6 +50,9 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
+exclude = [
+    "ms2query/notebooks/",
+]
 line-length = 120
 output-format = "grouped"
 
@@ -95,5 +99,4 @@ section-order = ["future", "standard-library", "third-party", "first-party", "lo
 [tool.pytest.ini_options]
 testpaths = [
     "tests",
-    "integration-tests",
 ]

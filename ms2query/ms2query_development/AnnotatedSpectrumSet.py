@@ -1,0 +1,169 @@
+import os
+from collections import defaultdict
+from typing import Iterable, List, Mapping, Optional, Sequence
+from matchms import Spectrum
+from matchms.exporting import save_spectra
+from matchms.importing import load_spectra
+from ms2deepscore.models import SiameseSpectralModel
+from tqdm import tqdm
+from ms2query.ms2query_development.Embeddings import Embeddings
+
+
+class AnnotatedSpectrumSet:
+    """Stores a spectrum dataset making it easy and fast to split on molecules"""
+
+    def __init__(
+        self,
+        spectra: Sequence[Spectrum],
+        spectrum_indices_per_inchikey: Mapping[str, Iterable[int]],
+        embeddings: Optional[Embeddings] = None,
+    ):
+        self._spectra = tuple([spectrum.clone() for spectrum in spectra])
+        self.spectrum_indices_per_inchikey: dict[str, tuple[int, ...]] = {
+            key: tuple(values) for key, values in spectrum_indices_per_inchikey.items()
+        }
+        self.embeddings = embeddings
+
+    @classmethod
+    def create_spectrum_set(cls, spectra: Sequence[Spectrum]) -> "AnnotatedSpectrumSet":
+        spectrum_indices_per_inchikey = defaultdict(list)
+        for spectrum_index, spectrum in enumerate(tqdm(spectra, desc="Create mapping from inchikey to spectrum")):
+            inchikey = spectrum.get("inchikey")
+            if inchikey is None:
+                raise ValueError("Annotated Spectrum set expects spectra that all have an inchikey")
+            spectrum_indices_per_inchikey[inchikey[:14]].append(spectrum_index)
+        return cls(spectra, spectrum_indices_per_inchikey)
+
+    def __add__(self, other) -> "AnnotatedSpectrumSet":
+        """Adds two spectrum sets together"""
+        if not isinstance(other, AnnotatedSpectrumSet):
+            return NotImplemented
+        spectra = self.spectra + other.spectra
+        # update spectrum_indices_per_inchikey
+        starting_index = len(self.spectra)
+        reindexed_indices_per_inchikey = {}
+        for inchikey, list_of_spectrum_indices in other.spectrum_indices_per_inchikey.items():
+            reindexed_indices_per_inchikey[inchikey] = [v + starting_index for v in list_of_spectrum_indices]
+        # combine indices
+        spectrum_indices_per_inchikey = defaultdict(list)
+        for indices_per_inchikey in (self.spectrum_indices_per_inchikey, reindexed_indices_per_inchikey):
+            for inchikey, indices in indices_per_inchikey.items():
+                spectrum_indices_per_inchikey[inchikey].extend(indices)
+
+        # combine embeddings
+        if self.has_embeddings != other.has_embeddings:
+            print("Only one of the two sets has an embeddings, so embeddings are not added")
+        embeddings = None
+        if self.has_embeddings and other.has_embeddings:
+            embeddings = self.embeddings + other.embeddings
+        return AnnotatedSpectrumSet(spectra, spectrum_indices_per_inchikey, embeddings=embeddings)
+
+    def subset_spectra(self, spectrum_indices) -> "AnnotatedSpectrumSet":
+        """Returns a new instance of a subset of the spectra"""
+        spectra = [self._spectra[index] for index in spectrum_indices]
+        new_instance = AnnotatedSpectrumSet.create_spectrum_set(spectra)
+        if self.has_embeddings:
+            new_instance._embeddings = self.embeddings.subset_embeddings(spectra)
+        return new_instance
+
+    def subset_spectra_on_metadata(self, metadata_key: str, values_to_keep: set) -> "AnnotatedSpectrumSet":
+        """Creates a subset from the spectra by checking for specific metadata keys
+
+        E.g. subset_spectra_on_metadata("ionmode", set(["positive"])) will return only the spectra in positive ion mode
+        """
+        spectrum_indexes_to_keep = []
+        for spectrum_index, spectrum in enumerate(tqdm(self.spectra, desc="Checking spectra for correct metadata")):
+            if spectrum.get(metadata_key) in values_to_keep:
+                spectrum_indexes_to_keep.append(spectrum_index)
+        return self.subset_spectra(spectrum_indexes_to_keep)
+
+    def spectra_per_inchikey(self, inchikey) -> List[Spectrum]:
+        matching_spectra = []
+        for index in self.spectrum_indices_per_inchikey[inchikey]:
+            matching_spectra.append(self._spectra[index])
+        return matching_spectra
+
+    def add_embeddings(self, model: SiameseSpectralModel):
+        self._embeddings = Embeddings.create_from_spectra(self._spectra, model)
+
+    @property
+    def has_embeddings(self) -> bool:
+        if self._embeddings is None:
+            return False
+        return True
+
+    @property
+    def spectra(self):
+        return self._spectra
+
+    @property
+    def embeddings(self) -> Embeddings:
+        if self._embeddings is None:
+            raise ValueError("First run the 'add_embeddings' method")
+        return self._embeddings
+
+    @embeddings.setter
+    def embeddings(self, embeddings: Optional[Embeddings]):
+        if embeddings is None:
+            self._embeddings = embeddings
+            return
+        if not embeddings.index_to_spectrum_hash == tuple(spectrum.__hash__() for spectrum in self.spectra):
+            raise ValueError(
+                "The embeddings spectrum hashes don't match the spectrum hashes, make sure you use matching embeddings"
+            )
+        self._embeddings = embeddings
+
+    @property
+    def inchikeys(self):
+        return tuple(self.spectrum_indices_per_inchikey.keys())
+
+    def __copy__(self):
+        return AnnotatedSpectrumSet(self.spectra, self.spectrum_indices_per_inchikey, self._embeddings)
+
+    def __eq__(self, other: object):
+        if not isinstance(other, AnnotatedSpectrumSet):
+            return NotImplemented("__Eq__ can only be done between two AnnotatedSpectrumSets")
+        if self.spectra != other.spectra:
+            return False
+        if self.spectrum_indices_per_inchikey != other.spectrum_indices_per_inchikey:
+            return False
+        if self._embeddings != other._embeddings:
+            return False
+        return True
+
+    def __len__(self):
+        return len(self._spectra)
+
+    def __repr__(self):
+        return (
+            f"AnnotatedSpectrumSet(nr_of_spectra = {len(self)},"
+            f"nr_of_unique_inchikeys = {len(self.inchikeys)}, "
+            f"has_embeddings={self.has_embeddings})"
+        )
+
+    def __str__(self):
+        with_embeddings = ""
+        if self.has_embeddings:
+            with_embeddings = "with embeddings"
+
+        return f"{len(self)} spectra for {len(self.inchikeys)} inchikeys {with_embeddings}"
+
+    def save(self, save_file: str) -> None:
+        """Save spectra to the specified path"""
+        save_spectra(list(self._spectra), save_file)
+
+        if self._embeddings is not None:
+            embedding_save_name = os.path.splitext(save_file)[0] + "_embeddings.npz"
+            print(f"Saving embeddings at {embedding_save_name}")
+            self._embeddings.save(embedding_save_name)
+
+    @classmethod
+    def load(cls, spectrum_file: str) -> "AnnotatedSpectrumSet":
+        """Load mass spectra into a AnnotatedSpectrmuSet, if embeddings are available they are loaded too"""
+        spectra = list(load_spectra(spectrum_file))
+
+        embedding_file_name = os.path.splitext(spectrum_file)[0] + "_embeddings.npz"
+        instance = cls.create_spectrum_set(spectra)
+        if os.path.exists(embedding_file_name):
+            instance.embeddings = Embeddings.load(embedding_file_name)
+        return instance
