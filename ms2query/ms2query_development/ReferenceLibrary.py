@@ -145,10 +145,6 @@ class ReferenceLibrary:
 
     def save(self, store_file_directory: str | Path):
         store_file_directory = Path(store_file_directory)
-        if not store_file_directory.is_file():
-            raise ValueError(
-                f"The store_file_directory is a file, please use a directory instead, given dir: {store_file_directory}"
-            )
         store_file_directory.mkdir(parents=True, exist_ok=True)
 
         def file_does_not_exist_yet(file_name: Path):
