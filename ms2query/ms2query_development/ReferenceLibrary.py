@@ -26,6 +26,7 @@ class ReferenceLibrary:
         "collision_energy",
         "compound_name",
         "smiles",
+        "inchi",
         "inchikey",
     ]
     fingerprint_type = "daylight"
@@ -108,6 +109,39 @@ class ReferenceLibrary:
         )
         library_spectrum_set.add_embeddings(ms2deepscore_model)
         return cls(ms2deepscore_model, library_spectrum_set.embeddings, top_k_tanimoto_scores, reference_metadata)
+
+    def add_spectra(self, new_library_spectra):
+        """Add spectra to the already existing library (the ms2deepscore model won't be retrained)"""
+        # Check that no duplicates are added
+        hashes = [spectrum.__hash__() for spectrum in tqdm(new_library_spectra, desc="Hashing spectra")]
+        if len(hashes) != len(set(hashes)):
+            raise ValueError("There are duplicated spectra, please make sure there are no duplicates")
+        # Only add spectra not already in the library
+        existing_hashes = set(self.reference_metadata["spectrum_hashes"])
+        new_spectra = [spectrum for spectrum, h in zip(new_library_spectra, hashes) if h not in existing_hashes]
+        if len(new_spectra) != len(new_library_spectra):
+            print(f"{len(new_library_spectra) - len(new_spectra)} were not added, since already in the library")
+
+        new_spectrum_set = AnnotatedSpectrumSet.create_spectrum_set(new_spectra)
+
+        # Add spectrum metadata
+        reference_metadata = extract_metadata_from_library(
+            new_spectrum_set,
+            self.metadata_to_store,
+        )
+        self.reference_metadata = pd.concat([self.reference_metadata, reference_metadata], ignore_index=True)
+
+        # Add embeddings
+        new_spectrum_set.add_embeddings(self.ms2deepscore_model)
+        self.reference_embeddings = self.reference_embeddings + new_spectrum_set.embeddings
+
+        # Recompute top k tanimoto scores
+        fingerprints = Fingerprints.from_dataframe(
+            self.reference_metadata, self.fingerprint_type, self.fingerprint_nbits
+        )
+        self.top_k_tanimoto_scores = TopKTanimotoScores.calculate_from_fingerprints(
+            fingerprints, fingerprints, self.top_k_inchikeys
+        )
 
     def save(self, store_file_directory: str | Path):
         store_file_directory = Path(store_file_directory)
