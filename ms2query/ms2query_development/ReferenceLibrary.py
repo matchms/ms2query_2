@@ -131,6 +131,33 @@ class ReferenceLibrary:
             library_spectrum_set.embeddings.save(store_file_directory / cls.embedding_file_name)
         return cls(ms2deepscore_model, library_spectrum_set.embeddings, top_k_tanimoto_scores, reference_metadata)
 
+    def save(self, store_file_directory: str | Path):
+        store_file_directory = Path(store_file_directory)
+        if not store_file_directory.is_file():
+            raise ValueError(
+                f"The store_file_directory is a file, please use a directory instead, given dir: {store_file_directory}"
+            )
+        store_file_directory.mkdir(parents=True, exist_ok=True)
+
+        def file_does_not_exist_yet(file_name: Path):
+            if file_name.exists:
+                print(f"The file: {file_name} already exists, not saved.")
+                return False
+            return True
+
+        # Save files after checking it does not exist yet
+        if file_does_not_exist_yet(store_file_directory / self.reference_metadata_file_name):
+            self.reference_metadata.to_parquet(store_file_directory / self.reference_metadata_file_name)
+
+        if file_does_not_exist_yet(store_file_directory / self.top_k_tanimoto_scores_file_name):
+            self.top_k_tanimoto_scores.save(store_file_directory / self.top_k_tanimoto_scores_file_name)
+
+        if file_does_not_exist_yet(store_file_directory / self.embedding_file_name):
+            self.reference_embeddings.save(store_file_directory / self.embedding_file_name)
+
+        if file_does_not_exist_yet(store_file_directory / self.ms2deepscore_model_file_name):
+            self.ms2deepscore_model.save(store_file_directory / self.ms2deepscore_model_file_name)
+
     def run_ms2query(
         self,
         query_spectra: Sequence[Spectrum],
