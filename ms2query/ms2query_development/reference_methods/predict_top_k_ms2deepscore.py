@@ -2,8 +2,8 @@ from typing import Tuple
 import numpy as np
 from ms2deepscore.vector_operations import cosine_similarity_matrix
 from tqdm import tqdm
-from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
-from ms2query.benchmarking.Embeddings import Embeddings
+from ms2query.ms2query_development.AnnotatedSpectrumSet import AnnotatedSpectrumSet
+from ms2query.ms2query_development.Embeddings import Embeddings
 
 
 def predict_top_k_ms2deepscores(

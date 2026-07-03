@@ -1,12 +1,12 @@
 import numpy as np
 from ms2deepscore.vector_operations import cosine_similarity_matrix
 from tqdm import tqdm
-from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
-from ms2query.benchmarking.Fingerprints import Fingerprints
-from ms2query.benchmarking.predict_top_k_ms2deepscore import (
+from ms2query.ms2query_development.AnnotatedSpectrumSet import AnnotatedSpectrumSet
+from ms2query.ms2query_development.Fingerprints import Fingerprints
+from ms2query.ms2query_development.reference_methods.predict_top_k_ms2deepscore import (
     select_inchikeys_with_highest_ms2deepscore,
 )
-from ms2query.benchmarking.TopKTanimotoScores import TopKTanimotoScores
+from ms2query.ms2query_development.TopKTanimotoScores import TopKTanimotoScores
 
 
 def calculate_MS2DeepScoresForTopKInChikeys_from_spectra(
@@ -76,6 +76,9 @@ def calculate_MS2DeepScoresForTopKInChikeys(
 
 class MS2DeepScoresForTopKInChikeys:
     """Stores the MS2DeepScores and Tanimoto scores for the top k closest lib spectra
+
+    This is only needed for the benchmarking and development (in the notebooks)
+    and is not used for running the final verison of MS2Query
 
     This allows for quick testing of different reranking strategies. E.g. get_mean is similar to the original MS2Query,
     but it can also be used to make matrixes with both MS2DeepScore and tanimoto scores to train small reranking models.

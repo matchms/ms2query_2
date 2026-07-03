@@ -1,6 +1,6 @@
 import numpy as np
-from ms2query.benchmarking.Fingerprints import Fingerprints
-from ms2query.benchmarking.reference_methods.predict_best_possible_match import predict_best_possible_match
+from ms2query.ms2query_development.Fingerprints import Fingerprints
+from ms2query.ms2query_development.reference_methods.predict_best_possible_match import predict_best_possible_match
 from tests.helper_functions import (
     get_library_and_test_spectra_not_identical,
 )

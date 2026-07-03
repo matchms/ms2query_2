@@ -1,7 +1,7 @@
 import random
 from typing import Callable, List, Tuple
 from tqdm import tqdm
-from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
+from ms2query.ms2query_development.AnnotatedSpectrumSet import AnnotatedSpectrumSet
 
 
 class EvaluateExactMatchSearchAcrossIonmodes:

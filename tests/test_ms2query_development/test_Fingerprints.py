@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 from matchms.filtering.metadata_processing.add_fingerprint import _derive_fingerprint_from_inchi
-from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
-from ms2query.benchmarking.Fingerprints import Fingerprints, get_similarity_matrix
+from ms2query.ms2query_development.AnnotatedSpectrumSet import AnnotatedSpectrumSet
+from ms2query.ms2query_development.Fingerprints import Fingerprints, get_similarity_matrix
 from tests.helper_functions import create_test_spectra, get_inchikey_inchi_pairs
 
 

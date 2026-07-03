@@ -6,7 +6,7 @@ from matchms.exporting import save_spectra
 from matchms.importing import load_spectra
 from ms2deepscore.models import SiameseSpectralModel
 from tqdm import tqdm
-from ms2query.benchmarking.Embeddings import Embeddings
+from ms2query.ms2query_development.Embeddings import Embeddings
 
 
 class AnnotatedSpectrumSet:

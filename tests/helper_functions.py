@@ -4,8 +4,8 @@ from pathlib import Path
 import numpy as np
 from matchms.Spectrum import Spectrum
 from ms2deepscore.models import load_model
-from ms2query.benchmarking.AnnotatedSpectrumSet import AnnotatedSpectrumSet
-from ms2query.benchmarking.Fingerprints import Fingerprints
+from ms2query.ms2query_development.AnnotatedSpectrumSet import AnnotatedSpectrumSet
+from ms2query.ms2query_development.Fingerprints import Fingerprints
 
 
 TEST_RESOURCES_PATH = Path(__file__).parent / "test_data"
@@ -86,6 +86,36 @@ def get_inchikey_inchi_pairs(number_of_pairs):
             "InChI=1S/C6H13NO2/c1-4(2)3-5(7)6(8)9/h4-5H,3,7H2,1-2H3,(H,8,9)/t5-/m0/s1",
             "CC(C)C[C@@H](C(=O)O)N",
             "L-Leucine",
+        ),
+        (
+            "BSYNRYMUTXBXSQ-UHFFFAOYSA-N",
+            "InChI=1S/C9H8O4/c1-6(10)13-8-5-3-2-4-7(8)9(11)12/h2-5H,1H3,(H,11,12)",
+            "CC(=O)OC1=CC=CC=C1C(=O)O",
+            "Aspirin",
+        ),
+        (
+            "WHUUTDBJXJRKMK-VKHMYHEASA-N",
+            "InChI=1S/C5H9NO4/c6-3(5(9)10)1-2-4(7)8/h3H,1-2,6H2,(H,7,8)(H,9,10)/t3-/m0/s1",
+            "C(CC(=O)O)[C@@H](C(=O)O)N",
+            "L-Glutamic acid",
+        ),
+        (
+            "ZKHQWZAMYRWXGA-KQYNXXCUSA-N",
+            "InChI=1S/C10H14N5O7P/c11-8-5-9(13-2-12-8)15(3-14-5)10-7(17)6(16)4(22-10)1-21-23(18,19)20/h2-4,6-7,10,16-17H,1H2,(H2,11,12,13)(H2,18,19,20)/t4-,6-,7-,10-/m1/s1",
+            "C1=NC(=C2C(=N1)N(C=N2)[C@H]3[C@@H]([C@@H]([C@H](O3)COP(=O)(O)O)O)O)N",
+            "AMP",
+        ),
+        (
+            "GVJHHUAWPYXKBD-UHFFFAOYSA-N",
+            "InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3",
+            "CCO",
+            "Ethanol",
+        ),
+        (
+            "IKHGUXGNUITLKF-XPULMUKRSA-N",
+            "InChI=1S/C9H13NO3/c1-6(11)13-8-4-2-7(3-5-8)9(10)12/h2-6,11H,1H3,(H2,10,12)/t6-/m0/s1",
+            "C[C@@H](C1=CC=C(C=C1)C(=O)N)O",
+            "Salbutamol",
         ),
     )
     if number_of_pairs > len(inchikey_inchi_pairs):

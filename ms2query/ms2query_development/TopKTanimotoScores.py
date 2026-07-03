@@ -1,7 +1,8 @@
+from pathlib import Path
 import numpy as np
 import pandas as pd
-from ms2query.benchmarking.Fingerprints import Fingerprints
 from ms2query.metrics import generalized_tanimoto_similarity_matrix
+from ms2query.ms2query_development.Fingerprints import Fingerprints
 
 
 class TopKTanimotoScores:
@@ -27,13 +28,21 @@ class TopKTanimotoScores:
         combined_data = np.empty((len(inchikey_indexes), self.k * 2), dtype=object)
         combined_data[:, 0::2] = top_k_inchikeys
         combined_data[:, 1::2] = tanimoto_scores_for_top_k
-        return pd.DataFrame(combined_data, index=inchikey_indexes, columns=columns)
+        df = pd.DataFrame(combined_data, index=inchikey_indexes, columns=columns)
+
+        # Cast score columns to float64
+        score_cols = [(rank, "score") for rank in [f"Rank_{i + 1}" for i in range(self.k)]]
+        df[score_cols] = df[score_cols].astype(float)
+
+        return df
 
     @classmethod
     def calculate_from_fingerprints(cls, query_fingerprints: Fingerprints, target_fingerprints: Fingerprints, k):
         """
         Gets the top k highest inchikeys and scores for each inchikey in query_fingerprints from target_fingerprints
         """
+        if target_fingerprints.fingerprints.shape[0] < k:
+            raise ValueError("K cannot be larger than the number of fingerprints")
         similarity_scores = generalized_tanimoto_similarity_matrix(
             query_fingerprints.fingerprints, target_fingerprints.fingerprints
         )
@@ -67,3 +76,30 @@ class TopKTanimotoScores:
 
         average_per_inchikey_df = scores_df.mean(axis=1)
         return average_per_inchikey_df.to_dict()
+
+    def save(self, path: str | Path) -> None:
+        """Save the TopKTanimotoScores to disk as a parquet file.
+
+        Args:
+            path: File path without extension, e.g. "/data/top_k_scores".
+        """
+        Path(path).with_suffix(".parquet").parent.mkdir(parents=True, exist_ok=True)
+        self.top_k_inchikeys_and_scores.to_parquet(Path(path).with_suffix(".parquet"))
+
+    @classmethod
+    def load(cls, path: str | Path) -> "TopKTanimotoScores":
+        """Load a previously saved TopKTanimotoScores from disk.
+
+        Args:
+            path: File path without extension, e.g. "/data/top_k_scores".
+
+        Returns:
+            A fully reconstructed TopKTanimotoScores instance.
+        """
+        df = pd.read_parquet(Path(path).with_suffix(".parquet"))
+        df.columns.names = ["result_rank", "attribute"]
+
+        instance = cls.__new__(cls)
+        instance.k = len(df.columns.get_level_values("result_rank").unique())
+        instance.top_k_inchikeys_and_scores = df
+        return instance

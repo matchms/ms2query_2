@@ -1,1 +1,0 @@
-All files here are not important to core functionality and in fact not used, but might be nice to use for future testing. They are currently not yet used in the notebooks. Once they are used there they can probably be removed here.

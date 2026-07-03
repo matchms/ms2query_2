@@ -1,6 +1,6 @@
 import os
 import pytest
-from ms2query.benchmarking.AnnotatedSpectrumSet import (
+from ms2query.ms2query_development.AnnotatedSpectrumSet import (
     AnnotatedSpectrumSet,
 )
 from tests.helper_functions import create_test_spectra, ms2deepscore_model
