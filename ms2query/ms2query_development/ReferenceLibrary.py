@@ -93,29 +93,11 @@ class ReferenceLibrary:
         cls,
         library_spectra: Sequence[Spectrum],
         ms2deepscore_model_file_name: str,
-        store_file_directory=None,
-        store_files=True,
     ) -> "ReferenceLibrary":
         """Creates all the files needed for MS2Query and stores them"""
-        if store_file_directory is None:
-            store_file_directory = Path(ms2deepscore_model_file_name).parent
-        else:
-            store_file_directory = Path(store_file_directory)
-        if store_files:
-            # Check the files don't exist yet
-            for file in (
-                store_file_directory / cls.embedding_file_name,
-                store_file_directory / cls.top_k_tanimoto_scores_file_name,
-                store_file_directory / cls.reference_metadata_file_name,
-            ):
-                if file.exists():
-                    raise FileExistsError(f"There is already a file stored with the name {file}")
-
         # library_spectra = list(tqdm(load_spectra(library_spectra_file), "Loading library spectra"))
         library_spectrum_set = AnnotatedSpectrumSet.create_spectrum_set(library_spectra)
         ms2deepscore_model = load_model(ms2deepscore_model_file_name)
-        library_spectrum_set.add_embeddings(ms2deepscore_model)
-
         fingerprints = Fingerprints.from_spectrum_set(library_spectrum_set, cls.fingerprint_type, cls.fingerprint_nbits)
         top_k_tanimoto_scores = TopKTanimotoScores.calculate_from_fingerprints(
             fingerprints, fingerprints, cls.top_k_inchikeys
@@ -124,11 +106,7 @@ class ReferenceLibrary:
             library_spectrum_set,
             cls.metadata_to_store,
         )
-
-        if store_files:
-            reference_metadata.to_parquet(store_file_directory / cls.reference_metadata_file_name)
-            top_k_tanimoto_scores.save(store_file_directory / cls.top_k_tanimoto_scores_file_name)
-            library_spectrum_set.embeddings.save(store_file_directory / cls.embedding_file_name)
+        library_spectrum_set.add_embeddings(ms2deepscore_model)
         return cls(ms2deepscore_model, library_spectrum_set.embeddings, top_k_tanimoto_scores, reference_metadata)
 
     def save(self, store_file_directory: str | Path):
