@@ -132,3 +132,10 @@ class TopKTanimotoScores:
         instance.k = len(df.columns.get_level_values("result_rank").unique())
         instance.top_k_inchikeys_and_scores = df
         return instance
+
+    def __eq__(self, other):
+        if not self.k == other.k:
+            return False
+        if not self.top_k_inchikeys_and_scores.equals(other.top_k_inchikeys_and_scores):
+            return False
+        return True
