@@ -62,3 +62,24 @@ def test_create_and_use_library(tmp_path):
 
     results_2 = ms2query_library_2.run_ms2query(test_spectra)
     pd.testing.assert_frame_equal(results, results_2)
+
+
+def test_add_spectra():
+    lib_spectra = create_test_spectra(nr_of_inchikeys=10, number_of_spectra_per_inchikey=3)
+    first_spectra = lib_spectra[:25]
+    later_spectra = lib_spectra[25:]
+    ms2deepscore_model_file = os.path.join(TEST_RESOURCES_PATH, "ms2deepscore_testmodel_v1.pt")
+    ms2query_library = ReferenceLibrary.create_from_spectra(first_spectra, ms2deepscore_model_file)
+    ms2query_library.add_spectra(later_spectra)
+
+    ms2query_library_2 = ReferenceLibrary.create_from_spectra(lib_spectra, ms2deepscore_model_file)
+
+    assert ms2query_library.reference_embeddings == ms2query_library_2.reference_embeddings
+    assert ms2query_library.top_k_tanimoto_scores == ms2query_library_2.top_k_tanimoto_scores
+    pd.testing.assert_frame_equal(ms2query_library.reference_metadata, ms2query_library_2.reference_metadata)
+    test_spectra = create_test_spectra(1, nr_of_inchikeys=3)
+
+    results = ms2query_library.run_ms2query(test_spectra)
+    results_2 = ms2query_library_2.run_ms2query(test_spectra)
+
+    pd.testing.assert_frame_equal(results, results_2)
