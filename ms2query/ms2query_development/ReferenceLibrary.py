@@ -71,7 +71,7 @@ class ReferenceLibrary:
             str(spectrum_hash) for spectrum_hash in self.reference_embeddings.index_to_spectrum_hash
         ]:
             raise ValueError("The loaded metadata does not match the used embeddings")
-        if {inchikey[:14] for inchikey in self.reference_metadata["inchikey"]} != set(
+        if set(self.spectrum_indices_per_inchikey.keys()) != set(
             self.top_k_tanimoto_scores.top_k_inchikeys_and_scores.index
         ):
             raise ValueError("The inchikeys in the metadata and in the top_k_tanimoto_scores do not match")
