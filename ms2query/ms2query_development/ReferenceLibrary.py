@@ -44,28 +44,41 @@ class ReferenceLibrary:
         self.reference_embeddings = reference_embeddings
         self.top_k_tanimoto_scores = top_k_tanimoto_scores
         self.reference_metadata = reference_metadata
+        self._validate()
 
+    @property
+    def reference_metadata(self):
+        return self._reference_metadata
+
+    @reference_metadata.setter
+    def reference_metadata(self, reference_metadata: pd.DataFrame):
+        self._reference_metadata = reference_metadata
+        # Get the spectrum_indices_per_inchikey
+        self.spectrum_indices_per_inchikey = defaultdict(list)
+        for lib_spec_index, inchikey in enumerate(self.reference_metadata["inchikey"]):
+            self.spectrum_indices_per_inchikey[inchikey[:14]].append(lib_spec_index)
+
+    def _validate(self):
         # Check that the loaded files match
-        if _to_json_serializable(ms2deepscore_model.model_settings.get_dict()) != reference_embeddings.model_settings:
+        if (
+            _to_json_serializable(self.ms2deepscore_model.model_settings.get_dict())
+            != self.reference_embeddings.model_settings
+        ):
             raise ValueError(
                 "The settings of the ms2deepscore model do not match the model used for creating the library embeddings"
             )
         if list(self.reference_metadata["spectrum_hashes"]) != [
-            str(spectrum_hash) for spectrum_hash in reference_embeddings.index_to_spectrum_hash
+            str(spectrum_hash) for spectrum_hash in self.reference_embeddings.index_to_spectrum_hash
         ]:
             raise ValueError("The loaded metadata does not match the used embeddings")
-        if {inchikey[:14] for inchikey in reference_metadata["inchikey"]} != set(
-            top_k_tanimoto_scores.top_k_inchikeys_and_scores.index
+        if {inchikey[:14] for inchikey in self.reference_metadata["inchikey"]} != set(
+            self.top_k_tanimoto_scores.top_k_inchikeys_and_scores.index
         ):
             raise ValueError("The inchikeys in the metadata and in the top_k_tanimoto_scores do not match")
 
-        # Get the spectrum_indices_per_inchikey
-        self.spectrum_indices_per_inchikey = defaultdict(list)
-        for lib_spec_index, inchikey in enumerate(reference_metadata["inchikey"]):
-            self.spectrum_indices_per_inchikey[inchikey[:14]].append(lib_spec_index)
-
     @classmethod
     def load_from_directory(cls, library_file_directory) -> "ReferenceLibrary":
+        library_file_directory = Path(library_file_directory)
         reference_embeddings_file = library_file_directory / cls.embedding_file_name
         top_k_tanimoto_scores_file = library_file_directory / cls.top_k_tanimoto_scores_file_name
         reference_metadata_file = library_file_directory / cls.reference_metadata_file_name
@@ -99,13 +112,13 @@ class ReferenceLibrary:
         # library_spectra = list(tqdm(load_spectra(library_spectra_file), "Loading library spectra"))
         library_spectrum_set = AnnotatedSpectrumSet.create_spectrum_set(library_spectra)
         ms2deepscore_model = load_model(ms2deepscore_model_file_name)
-        fingerprints = Fingerprints.from_spectrum_set(library_spectrum_set, cls.fingerprint_type, cls.fingerprint_nbits)
-        top_k_tanimoto_scores = TopKTanimotoScores.calculate_from_fingerprints(
-            fingerprints, fingerprints, cls.top_k_inchikeys
-        )
         reference_metadata = extract_metadata_from_library(
             library_spectrum_set,
             cls.metadata_to_store,
+        )
+        fingerprints = Fingerprints.from_dataframe(reference_metadata, cls.fingerprint_type, cls.fingerprint_nbits)
+        top_k_tanimoto_scores = TopKTanimotoScores.calculate_from_fingerprints(
+            fingerprints, fingerprints, cls.top_k_inchikeys
         )
         library_spectrum_set.add_embeddings(ms2deepscore_model)
         return cls(ms2deepscore_model, library_spectrum_set.embeddings, top_k_tanimoto_scores, reference_metadata)
