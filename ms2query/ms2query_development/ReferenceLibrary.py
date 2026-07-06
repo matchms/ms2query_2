@@ -190,6 +190,7 @@ class ReferenceLibrary:
         num_of_query_embeddings = query_embeddings.embeddings.shape[0]
 
         library_index_highest_ms2deepscore = np.zeros((num_of_query_embeddings), dtype=int)
+        highest_ms2deepscore = np.zeros((num_of_query_embeddings), dtype=float)
         ms2query_scores = []
         for start_idx in tqdm(
             range(0, num_of_query_embeddings, batch_size),
@@ -203,6 +204,7 @@ class ReferenceLibrary:
             score_matrix = cosine_similarity_matrix(selected_query_embeddings, self.reference_embeddings.embeddings)
             highest_score_idx = np.argmax(score_matrix, axis=1)
             library_index_highest_ms2deepscore[start_idx:end_idx] = highest_score_idx
+            highest_ms2deepscore[start_idx:end_idx] = np.max(score_matrix, axis=1)
 
             # get predicted inchikeys
             predicted_inchikeys = self.reference_metadata.iloc[highest_score_idx]["inchikey"]
@@ -216,6 +218,12 @@ class ReferenceLibrary:
         # construct results df
         results = self.reference_metadata.iloc[library_index_highest_ms2deepscore]
         results["ms2query_reliability_prediction"] = ms2query_scores
+        results["highest_ms2deepscore"] = highest_ms2deepscore
+
+        # spectrum metadata
+        results["query_precursor_mz"] = [spectrum.get("precursor_mz") for spectrum in query_spectra]
+        results["query_retention_time"] = [spectrum.get("retention_time") for spectrum in query_spectra]
+
         return results
 
 
