@@ -38,7 +38,9 @@ class Fingerprints:
     def from_dataframe(cls, dataframe: pd.DataFrame, fingerprint_type, nbits):
         """From a dataframe with columns inchikey and inchi the Fingerprints are computed"""
         most_common_inchi_per_inchikey = (
-            dataframe.groupby("inchikey")["inchi"].agg(lambda x: x.value_counts().idxmax()).to_dict()
+            dataframe.groupby(dataframe["inchikey"].str[:14])["inchi"]
+            .agg(lambda x: x.value_counts().idxmax())
+            .to_dict()
         )
         return cls.compute_fingerprints_from_inchi(most_common_inchi_per_inchikey, fingerprint_type, nbits)
 
