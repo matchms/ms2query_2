@@ -52,6 +52,11 @@ class Embeddings:
         embeddings = self._embeddings[embedding_indexes].copy()
         return Embeddings(embeddings, spectrum_hashes, self.model_settings)
 
+    def subset_embeddings_from_index(self, indexes):
+        spectrum_hashes = [self.index_to_spectrum_hash[index] for index in indexes]
+        embeddings = self._embeddings[indexes].copy()
+        return Embeddings(embeddings, tuple(spectrum_hashes), self.model_settings)
+
     @property
     def embeddings(self):
         return self._embeddings.view()
