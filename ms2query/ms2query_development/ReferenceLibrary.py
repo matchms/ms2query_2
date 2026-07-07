@@ -216,7 +216,7 @@ class ReferenceLibrary:
             )
 
         # construct results df
-        results = self.reference_metadata.iloc[library_index_highest_ms2deepscore]
+        results = self.reference_metadata.iloc[library_index_highest_ms2deepscore].copy()
         results["ms2query_reliability_prediction"] = ms2query_scores
         results["highest_ms2deepscore"] = highest_ms2deepscore
 
@@ -225,6 +225,89 @@ class ReferenceLibrary:
         results["query_retention_time"] = [spectrum.get("retention_time") for spectrum in query_spectra]
 
         return results
+
+    def run_semi_targeted_ms2query(
+        self,
+        query_spectra: Sequence[Spectrum],
+        inchikeys_to_check: set[str],
+        batch_size: int = 1000,
+    ) -> pd.DataFrame:
+        """This does a search in just a subset of the inchikeys in the library.
+
+        This is a semi targeted analogue search, where you specifically search for a subset of inchikeys.
+        The rest of the library is still used to compute the MS2Query reliability score."""
+
+        query_embeddings = Embeddings.create_from_spectra(query_spectra, self.ms2deepscore_model)
+
+        num_of_query_embeddings = query_embeddings.embeddings.shape[0]
+
+        library_index_highest_ms2deepscore = np.zeros((num_of_query_embeddings), dtype=int)
+        highest_ms2deepscore = np.zeros((num_of_query_embeddings), dtype=float)
+
+        inchikey_14_to_check = {inchikey[:14] for inchikey in inchikeys_to_check}
+
+        spectrum_indices_inchikeys_to_check = []
+        for inchikey in inchikey_14_to_check:
+            spectrum_indices_inchikeys_to_check.extend(self.spectrum_indices_per_inchikey[inchikey])
+        embeddings_inchikeys_to_check = self.reference_embeddings.subset_embeddings_from_index(
+            spectrum_indices_inchikeys_to_check
+        )
+        metadata_subset = self.reference_metadata.iloc[spectrum_indices_inchikeys_to_check]
+
+        ms2query_scores = []
+        for start_idx in tqdm(
+            range(0, num_of_query_embeddings, batch_size),
+            desc="Predicting highest ms2deepscore per batch of "
+            + str(min(batch_size, num_of_query_embeddings))
+            + " embeddings",
+        ):
+            # Do MS2DeepScore predictions for batch
+            end_idx = min(start_idx + batch_size, num_of_query_embeddings)
+            selected_query_embeddings = query_embeddings.embeddings[start_idx:end_idx]
+            score_matrix = cosine_similarity_matrix(selected_query_embeddings, embeddings_inchikeys_to_check.embeddings)
+            highest_score_idx = np.argmax(score_matrix, axis=1)
+            library_index_highest_ms2deepscore[start_idx:end_idx] = highest_score_idx
+            highest_ms2deepscore[start_idx:end_idx] = np.max(score_matrix, axis=1)
+
+            # get predicted inchikeys
+            predicted_inchikeys = metadata_subset.iloc[highest_score_idx]["inchikey"]
+            # Compute MS2Query reliability score
+            ms2query_scores.extend(
+                self.get_ms2query_reliability_prediction_recompute_scores(
+                    predicted_inchikeys,
+                    selected_query_embeddings,
+                )
+            )
+
+        # construct results df
+        results = metadata_subset.iloc[library_index_highest_ms2deepscore].copy()
+        results["ms2query_reliability_prediction"] = ms2query_scores
+        results["highest_ms2deepscore"] = highest_ms2deepscore
+
+        # spectrum metadata
+        results["query_precursor_mz"] = [spectrum.get("precursor_mz") for spectrum in query_spectra]
+        results["query_retention_time"] = [spectrum.get("retention_time") for spectrum in query_spectra]
+
+        return results
+
+    def get_ms2query_reliability_prediction_recompute_scores(
+        self,
+        predicted_inchikeys: list[str],
+        query_embeddings,
+    ) -> list[float]:
+        ms2query_scores = []
+        for query_spectrum_index, library_inchikey in enumerate(predicted_inchikeys):
+            top_k_inchikeys = self.top_k_tanimoto_scores.select_top_k_inchikeys(library_inchikey[:14])
+            maximum_ms2deepscores = np.zeros(self.top_k_tanimoto_scores.k, dtype=float)
+            for i, inchikey in enumerate(top_k_inchikeys):
+                spectrum_indexes = self.spectrum_indices_per_inchikey[inchikey]
+                score_matrix = cosine_similarity_matrix(
+                    query_embeddings[[query_spectrum_index], :], self.reference_embeddings.embeddings[spectrum_indexes]
+                )
+                highest_ms2deepscore = np.max(score_matrix)
+                maximum_ms2deepscores[i] = highest_ms2deepscore
+            ms2query_scores.append(np.mean(maximum_ms2deepscores))
+        return ms2query_scores
 
 
 def run_ms2query_from_files(
