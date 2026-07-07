@@ -83,3 +83,17 @@ def test_add_spectra():
     results_2 = ms2query_library_2.run_ms2query(test_spectra)
 
     pd.testing.assert_frame_equal(results, results_2)
+
+
+def test_run_semi_targeted_search():
+    lib_spectra = create_test_spectra(nr_of_inchikeys=10, number_of_spectra_per_inchikey=3)
+    ms2deepscore_model_file = os.path.join(TEST_RESOURCES_PATH, "ms2deepscore_testmodel_v1.pt")
+    library = ReferenceLibrary.create_from_spectra(lib_spectra, ms2deepscore_model_file)
+    test_spectra = create_test_spectra(1, nr_of_inchikeys=3)
+    inchikeys = {spectrum.get("inchikey")[:14] for spectrum in lib_spectra}
+    results = library.run_semi_targeted_ms2query(test_spectra, inchikeys)
+
+    results_2 = library.run_ms2query(test_spectra)
+    print(results)
+    print(results_2)
+    pd.testing.assert_frame_equal(results, results_2)
