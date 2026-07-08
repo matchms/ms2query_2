@@ -1,6 +1,7 @@
 from pathlib import Path
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 from ms2query.metrics import generalized_tanimoto_similarity_matrix
 from ms2query.ms2query_development.Fingerprints import Fingerprints
 
@@ -37,21 +38,49 @@ class TopKTanimotoScores:
         return df
 
     @classmethod
-    def calculate_from_fingerprints(cls, query_fingerprints: Fingerprints, target_fingerprints: Fingerprints, k):
+    def calculate_from_fingerprints(
+        cls,
+        query_fingerprints: Fingerprints,
+        target_fingerprints: Fingerprints,
+        k: int,
+        batch_size: int = 1000,
+    ):
         """
-        Gets the top k highest inchikeys and scores for each inchikey in query_fingerprints from target_fingerprints
+        Gets the top k highest inchikeys and scores for each inchikey in query_fingerprints
+        from target_fingerprints.
+
+        Runs in batches over the query fingerprints so the full (n_queries x n_targets)
+        similarity matrix is never fully materialized in memory - only one batch's slice
+        is, which is then reduced down to just the top-k before moving to the next batch.
         """
-        if target_fingerprints.fingerprints.shape[0] < k:
+        n_targets = target_fingerprints.fingerprints.shape[0]
+        n_queries = query_fingerprints.fingerprints.shape[0]
+
+        if n_targets < k:
             raise ValueError("K cannot be larger than the number of fingerprints")
-        similarity_scores = generalized_tanimoto_similarity_matrix(
-            query_fingerprints.fingerprints, target_fingerprints.fingerprints
-        )
-        inchikey_indexes_of_top_k = np.argpartition(similarity_scores, -k, axis=1)[:, -k:]
-        top_k_inchikeys = np.array(target_fingerprints.inchikeys)[inchikey_indexes_of_top_k]
-        tanimoto_scores_for_top_k = similarity_scores[
-            np.arange(similarity_scores.shape[0])[:, None], inchikey_indexes_of_top_k
-        ]
-        return cls(tanimoto_scores_for_top_k, top_k_inchikeys, np.array(query_fingerprints.inchikeys))
+
+        target_inchikeys = np.array(target_fingerprints.inchikeys)
+
+        # Preallocate final outputs instead of concatenating per batch
+        top_k_scores = np.empty((n_queries, k), dtype=np.float32)
+        top_k_inchikeys = np.empty((n_queries, k), dtype=target_inchikeys.dtype)
+
+        n_batches = int(np.ceil(n_queries / batch_size))
+        for batch_idx in tqdm(range(n_batches), desc="Calculating top-k Tanimoto scores"):
+            start = batch_idx * batch_size
+            end = min(start + batch_size, n_queries)
+
+            query_batch = query_fingerprints.fingerprints[start:end]
+
+            # shape: (batch_size, n_targets) -- small enough to hold in memory
+            similarity_scores = generalized_tanimoto_similarity_matrix(query_batch, target_fingerprints.fingerprints)
+
+            top_k_idx = np.argpartition(similarity_scores, -k, axis=1)[:, -k:]
+
+            top_k_scores[start:end] = similarity_scores[np.arange(similarity_scores.shape[0])[:, None], top_k_idx]
+            top_k_inchikeys[start:end] = target_inchikeys[top_k_idx]
+
+        return cls(top_k_scores, top_k_inchikeys, np.array(query_fingerprints.inchikeys))
 
     def select_top_k_inchikeys_and_scores(self, inchikey) -> dict[str, float]:
         """Returns a dictionary with inchikeys and scores for the given inchikey"""
@@ -103,3 +132,10 @@ class TopKTanimotoScores:
         instance.k = len(df.columns.get_level_values("result_rank").unique())
         instance.top_k_inchikeys_and_scores = df
         return instance
+
+    def __eq__(self, other):
+        if not self.k == other.k:
+            return False
+        if not self.top_k_inchikeys_and_scores.equals(other.top_k_inchikeys_and_scores):
+            return False
+        return True

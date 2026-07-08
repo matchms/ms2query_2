@@ -35,6 +35,16 @@ class Fingerprints:
         return cls(fingerprints, index_to_inchikey, fingerprint_type)
 
     @classmethod
+    def from_dataframe(cls, dataframe: pd.DataFrame, fingerprint_type, nbits):
+        """From a dataframe with columns inchikey and inchi the Fingerprints are computed"""
+        most_common_inchi_per_inchikey = (
+            dataframe.groupby(dataframe["inchikey"].str[:14])["inchi"]
+            .agg(lambda x: x.value_counts().idxmax())
+            .to_dict()
+        )
+        return cls.compute_fingerprints_from_inchi(most_common_inchi_per_inchikey, fingerprint_type, nbits)
+
+    @classmethod
     def from_spectrum_set(cls, spectrum_set: AnnotatedSpectrumSet, fingerprint_type, nbits):
         most_common_inchi_per_inchikey = {}
         for inchikey, spectrum_indexes in tqdm(
