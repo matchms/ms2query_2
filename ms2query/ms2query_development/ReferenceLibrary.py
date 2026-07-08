@@ -224,7 +224,10 @@ class ReferenceLibrary:
 
         spectrum_indices_inchikeys_to_check = []
         for inchikey in inchikey_14_to_check:
-            spectrum_indices_inchikeys_to_check.extend(self.spectrum_indices_per_inchikey[inchikey])
+            if inchikey in self.spectrum_indices_per_inchikey:
+                spectrum_indices_inchikeys_to_check.extend(self.spectrum_indices_per_inchikey[inchikey])
+            else:
+                print(f"The inchikey: {inchikey} is not in the reference library, so it won't be searched for")
         embeddings_inchikeys_to_check = self.reference_embeddings.subset_embeddings_from_index(
             spectrum_indices_inchikeys_to_check
         )
